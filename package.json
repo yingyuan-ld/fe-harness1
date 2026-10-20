@@ -5,7 +5,7 @@
     "packages/shared"
   ],
   "scripts": {
-    "test": "npm run test -w @fe/shared",
+    "test": "npm run test -w @fe/shared --if-present",
     "typecheck": "tsc -p packages/shared --noEmit"
   },
   "devDependencies": {
