@@ -1,0 +1,15 @@
+{
+  "name": "@fe/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx --test src/card.test.ts src/report.test.ts src/judge.test.ts src/progress.test.ts src/branch.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0"
+  }
+}
