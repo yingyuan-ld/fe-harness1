@@ -2,11 +2,13 @@
   "name": "fe-harness",
   "private": true,
   "workspaces": [
-    "packages/shared"
+    "packages/shared",
+    "apps/orchestrator"
   ],
   "scripts": {
-    "test": "npm run test -w @fe/shared --if-present",
-    "typecheck": "tsc -p packages/shared --noEmit"
+    "test": "npm run test -w @fe/shared --if-present && npm run test -w @fe/orchestrator",
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/orchestrator --noEmit",
+    "check-store": "npm run check-store -w @fe/orchestrator"
   },
   "devDependencies": {
     "tsx": "^4.20.6",

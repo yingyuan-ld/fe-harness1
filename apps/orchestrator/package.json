@@ -1,0 +1,13 @@
+{
+  "name": "@fe/orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test src/store.test.ts",
+    "check-store": "tsx src/check-store.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0"
+  }
+}

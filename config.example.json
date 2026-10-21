@@ -1,0 +1,10 @@
+{
+  "cursorApiKey": "",
+  "modelId": "composer-2.5",
+  "port": 8787,
+  "dataDir": "data",
+  "githubToken": "",
+  "gitlabToken": "",
+  "azureDevOpsToken": "",
+  "previewHost": "127.0.0.1"
+}
