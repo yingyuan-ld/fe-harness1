@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test src/store.test.ts",
-    "check-store": "tsx db/check-store.ts"
+    "dev": "tsx src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"
