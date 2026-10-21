@@ -1,6 +1,5 @@
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
+import { openDatabase } from "./open.js";
 import {
   CONVERSATION_STATUSES,
   ERROR_CLASSES,
@@ -48,64 +47,9 @@ type ConversationSql = {
 export class Store {
   private readonly db: DatabaseSync;
 
-  /** 打开 dataDir 下的 harness.sqlite。目录和表不存在时会建好。 */
+  /** 打开 dataDir 下的数据库。目录和表不存在时由 openDatabase 建好。 */
   constructor(dataDir: string) {
-    mkdirSync(dataDir, { recursive: true });
-    this.db = new DatabaseSync(path.join(dataDir, "harness.sqlite"));
-    this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec("PRAGMA foreign_keys = ON");
-    this.db.exec("PRAGMA busy_timeout = 5000");
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        repo_url TEXT NOT NULL,
-        local_path TEXT NOT NULL,
-        provider TEXT NOT NULL,
-        starting_ref TEXT NOT NULL,
-        test_command TEXT NOT NULL,
-        dev_command TEXT NOT NULL,
-        required_checks TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS conversations (
-        id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        change_card TEXT,
-        clarify_agent_id TEXT,
-        implement_agent_id TEXT,
-        worktree_path TEXT,
-        branch TEXT,
-        preview_port INTEGER,
-        mr_url TEXT,
-        preview_url TEXT,
-        preview_status TEXT,
-        report TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        FOREIGN KEY (project_id) REFERENCES projects(id)
-      );
-      CREATE TABLE IF NOT EXISTS messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        body TEXT NOT NULL,
-        images TEXT NOT NULL,
-        run_id TEXT,
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS runs (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        phase TEXT NOT NULL,
-        status TEXT NOT NULL,
-        error_class TEXT,
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-      );
-    `);
+    this.db = openDatabase(dataDir);
   }
 
   /** 关闭数据库连接。 */

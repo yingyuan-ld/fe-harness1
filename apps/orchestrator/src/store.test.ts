@@ -3,9 +3,8 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { type ProjectRecord, Store } from "../db/index.js";
 import { loadConfig } from "./config.js";
-import type { ProjectRecord } from "./records.js";
-import { Store } from "./store.js";
 
 const project: ProjectRecord = {
   id: "app",

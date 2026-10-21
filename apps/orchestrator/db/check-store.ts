@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { loadConfig } from "./config.js";
-import type { ProjectRecord } from "./records.js";
-import { Store } from "./store.js";
+import { loadConfig } from "../src/config.js";
+import { type ProjectRecord, Store } from "./index.js";
 
 const project: ProjectRecord = {
   id: "m1-check",

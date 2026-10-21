@@ -1,3 +1,4 @@
+// 负责读取并校验配置文件
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
