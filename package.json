@@ -7,7 +7,8 @@
     "apps/web"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/orchestrator --noEmit && tsc -p apps/web --noEmit"
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/orchestrator --noEmit && tsc -p apps/web --noEmit",
+    "test": "npm test -w @fe/orchestrator"
   },
   "devDependencies": {
     "tsx": "^4.20.6",

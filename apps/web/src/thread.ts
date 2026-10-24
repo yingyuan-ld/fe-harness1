@@ -1,3 +1,9 @@
+/**
+ * 页面上一条对话的公共约定。
+ * 定义对话状态和中文标签、聊天区使用的对话结构，并校验变更卡、判断当前状态能不能发送。
+ * 聊天区、侧栏和接口类型都从这里取，不请求接口，也不负责画界面。
+ */
+
 export const STATUSES = [
   "clarifying",
   "pending_confirm",
@@ -30,58 +36,40 @@ export type ChangeCard = {
 
 export type ChatMessage = {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "prompt";
   body: string;
 };
 
-/** 页面上的一条对话。登记服务还没有对话接口，所以先记在浏览器里。 */
 export type Thread = {
   id: string;
-  projectId: string;
   title: string;
   status: Status;
   messages: ChatMessage[];
   changeCard: ChangeCard | null;
-  progress: string;
   previewUrl: string | null;
   previewStatus: "pending" | "ready" | "missing" | null;
   mrUrl: string | null;
-  unmet: string[];
 };
 
-export function createThread(projectId: string): Thread {
+/** 变更卡缺字段时不展示，避免把未完成的内容画成卡片。 */
+export function readCard(value: unknown): ChangeCard | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.goal !== "string" || typeof raw.pages !== "string" || typeof raw.summary !== "string") return null;
+  if (!isStringList(raw.acceptance) || !isStringList(raw.outOfScope)) return null;
   return {
-    id: crypto.randomUUID(),
-    projectId,
-    title: "新对话",
-    status: "clarifying",
-    messages: [],
-    changeCard: null,
-    progress: "",
-    previewUrl: null,
-    previewStatus: null,
-    mrUrl: null,
-    unmet: [],
+    goal: raw.goal,
+    pages: raw.pages,
+    acceptance: raw.acceptance,
+    outOfScope: raw.outOfScope,
+    summary: raw.summary,
   };
-}
-
-/** 把使用人的话收成一张可确认的变更卡。 */
-export function cardFromText(text: string): ChangeCard {
-  const summary = text.trim().replace(/\s+/g, " ");
-  const goal = summary.length > 42 ? `${summary.slice(0, 42)}…` : summary;
-  return {
-    goal: goal || "这次改动",
-    pages: "你刚说的页面",
-    acceptance: ["页面上能看到这次改动"],
-    outOfScope: ["这次不改其他页面"],
-    summary,
-  };
-}
-
-export function canCancel(status: Status): boolean {
-  return status === "developing" || status === "revising";
 }
 
 export function canSend(status: Status): boolean {
   return status !== "developing" && status !== "revising";
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }

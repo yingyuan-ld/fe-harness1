@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { ApiError, addProject, updateProject, type Project, type Provider } from "../api";
+import { ApiError, addProject, updateProject, type Project, type Provider } from "../../api";
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   github: "GitHub",
@@ -8,7 +8,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   "azure-devops": "Azure DevOps",
 };
 
-export function Registry({
+export function RegistryForm({
   project,
   onClose,
   onSaved,
@@ -91,11 +91,7 @@ export function Registry({
         </label>
         <label>
           本机目录
-          <input
-            value={localPath}
-            onChange={(event) => setLocalPath(event.target.value)}
-            placeholder="E:\fe\repo"
-          />
+          <input value={localPath} onChange={(event) => setLocalPath(event.target.value)} placeholder="E:\fe\repo" />
         </label>
         <p className="hint">本机目录必须是 git 仓库，并且起始分支已经存在。</p>
         <label>

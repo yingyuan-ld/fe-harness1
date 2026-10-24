@@ -6,3 +6,4 @@ const config = loadConfig();
 const store = new Store(config.dataDir);
 const { port } = await startServer(store, config.port);
 console.log(`仓库登记 http://127.0.0.1:${port}/api/projects/list`);
+console.log(`对话 http://127.0.0.1:${port}/api/conversations`);

@@ -8,6 +8,8 @@
     "build": "vite build"
   },
   "dependencies": {
+    "mobx": "^7.1.0",
+    "mobx-react-lite": "^5.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
