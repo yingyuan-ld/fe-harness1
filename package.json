@@ -3,10 +3,11 @@
   "private": true,
   "workspaces": [
     "packages/shared",
-    "apps/orchestrator"
+    "apps/orchestrator",
+    "apps/web"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/orchestrator --noEmit"
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p apps/orchestrator --noEmit && tsc -p apps/web --noEmit"
   },
   "devDependencies": {
     "tsx": "^4.20.6",
