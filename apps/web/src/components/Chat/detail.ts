@@ -1,12 +1,10 @@
-// 负责订阅事件流、合并消息，以及把接口数据整理成页面用的对话。
+// 负责订阅事件流和合并消息。
 import type { Dispatch, SetStateAction } from "react";
 import { getConversation, type Conversation, type ConversationMessage } from "../../api";
-import { readCard, type Thread } from "../../thread";
-
-export type Detail = { conversation: Conversation; messages: ConversationMessage[] };
 
 type LiveHandlers = {
-  setDetail: Dispatch<SetStateAction<Detail | null>>;
+  setConversation: Dispatch<SetStateAction<Conversation | null>>;
+  setMessages: Dispatch<SetStateAction<ConversationMessage[]>>;
   setActiveId: (id: string) => void;
   setError: (message: string) => void;
   refreshList: () => void;
@@ -14,12 +12,14 @@ type LiveHandlers = {
 
 /** 订阅这条对话的后续变更，并读取已有内容。返回的函数用于取消。 */
 export function subscribeConversation(activeId: string, handlers: LiveHandlers): () => void {
-  const { setDetail, setActiveId, setError, refreshList } = handlers;
+  const { setConversation, setMessages, setActiveId, setError, refreshList } = handlers;
   if (!activeId) {
-    setDetail(null);
+    setConversation(null);
+    setMessages([]);
     return () => undefined;
   }
   let closed = false;
+  let opened = false;
   const queued: ConversationMessage[] = [];
   let queuedConversation: Conversation | null = null;
   const source = new EventSource(`/api/conversations/${encodeURIComponent(activeId)}/events`);
@@ -27,47 +27,47 @@ export function subscribeConversation(activeId: string, handlers: LiveHandlers):
     const data = parseLive(event.data);
     if (!data) return;
     if (data.type === "deleted") {
-      setDetail(null);
+      setConversation(null);
+      setMessages([]);
       setActiveId("");
       refreshList();
       return;
     }
     if (data.type === "conversation") {
-      setDetail((current) => {
-        if (!current || current.conversation.id !== activeId) {
+      setConversation((current) => {
+        if (!opened || !current || current.id !== activeId) {
           queuedConversation = data.conversation;
           return current;
         }
-        return { ...current, conversation: data.conversation };
+        return data.conversation;
       });
       refreshList();
       return;
     }
     if (data.type !== "message") return;
     const message = data.message;
-    setDetail((current) => {
-      if (!current || current.conversation.id !== activeId) {
-        queued.push(message);
-        return current;
-      }
-      return { ...current, messages: mergeMessages(current.messages, [message]) };
-    });
+    if (!opened) {
+      queued.push(message);
+      refreshList();
+      return;
+    }
+    setMessages((current) => mergeMessages(current, [message]));
     refreshList();
   };
   getConversation(activeId)
     .then((result) => {
       if (closed) return;
-      setDetail((current) => {
-        const base = current?.conversation.id === activeId ? current.messages : result.messages;
-        const extras = queued.splice(0);
-        const conversation = queuedConversation?.id === activeId ? queuedConversation : result.conversation;
-        queuedConversation = null;
-        return { conversation, messages: mergeMessages(mergeMessages(result.messages, base), extras) };
-      });
+      opened = true;
+      const conversation = queuedConversation?.id === activeId ? queuedConversation : result.conversation;
+      queuedConversation = null;
+      const extras = queued.splice(0);
+      setConversation(conversation);
+      setMessages((current) => mergeMessages(mergeMessages(result.messages, current), extras));
     })
     .catch((err: unknown) => {
       if (closed) return;
-      setDetail(null);
+      setConversation(null);
+      setMessages([]);
       setActiveId("");
       setError(err instanceof Error ? err.message : "加载失败");
     });
@@ -87,21 +87,6 @@ export function mergeMessages(current: ConversationMessage[], incoming: Conversa
     next.push(item);
   }
   return next;
-}
-
-/** 把接口里的对话整理成页面用的结构。变更卡在这里校验一次。 */
-export function toThread(conversation: Conversation, messages: ConversationMessage[]): Thread {
-  return {
-    id: conversation.id,
-    title: conversation.title,
-    status: conversation.status,
-    messages,
-    changeCard: readCard(conversation.changeCard),
-    cardFrozen: conversation.cardFrozen === true,
-    previewUrl: conversation.previewUrl,
-    previewStatus: conversation.previewStatus,
-    mrUrl: conversation.mrUrl,
-  };
 }
 
 export function parseLive(

@@ -1,7 +1,7 @@
-import type { Thread } from "../../thread";
+import type { ConversationMessage } from "../../api";
 
 /** 聊天记录。提示消息不展示。 */
-export function MessageList({ messages }: { messages: Thread["messages"] }) {
+export function MessageList({ messages }: { messages: ConversationMessage[] }) {
   return (
     <>
       {messages.filter(isVisible).map((message) => (
@@ -14,7 +14,7 @@ export function MessageList({ messages }: { messages: Thread["messages"] }) {
   );
 }
 
-function isVisible(message: Thread["messages"][number]): message is Thread["messages"][number] & { role: "user" | "assistant" | "system" } {
+function isVisible(message: ConversationMessage): message is ConversationMessage & { role: "user" | "assistant" | "system" } {
   return message.role !== "prompt";
 }
 

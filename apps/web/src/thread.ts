@@ -1,6 +1,6 @@
 /**
  * 页面上一条对话的公共约定。
- * 定义对话状态和中文标签、聊天区使用的对话结构，并校验变更卡、判断当前状态能不能发送。
+ * 定义对话状态和中文标签，并校验变更卡、判断当前状态能不能发送。
  * 聊天区、侧栏和接口类型都从这里取，不请求接口，也不负责画界面。
  */
 
@@ -32,25 +32,6 @@ export type ChangeCard = {
   acceptance: string[];
   outOfScope: string[];
   summary: string;
-};
-
-export type ChatMessage = {
-  id: string;
-  role: "user" | "assistant" | "system" | "prompt";
-  body: string;
-};
-
-export type Thread = {
-  id: string;
-  title: string;
-  status: Status;
-  messages: ChatMessage[];
-  changeCard: ChangeCard | null;
-  /** 已经确认，不再因为补充而换卡。 */
-  cardFrozen: boolean;
-  previewUrl: string | null;
-  previewStatus: "pending" | "ready" | "missing" | null;
-  mrUrl: string | null;
 };
 
 /** 变更卡缺字段时不展示，避免把未完成的内容画成卡片。 */
