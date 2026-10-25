@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Store } from "../db/index.js";
+import type { AgentAdapter } from "./agent.js";
+import { confirmCard, runClarify } from "./clarify.js";
 import {
   addMessage,
   ConversationError,
@@ -11,11 +13,16 @@ import {
 } from "./conversations.js";
 import { RegisterError, registerProject, updateProject } from "./registry.js";
 
-/** 在本机启动登记和对话接口。端口为 0 时由系统分配。 */
-export function startServer(store: Store, port: number): Promise<{ server: Server; port: number }> {
+/** 在本机启动登记和对话接口。传入 agent 时，使用人的消息会走澄清。端口为 0 时由系统分配。 */
+export function startServer(
+  store: Store,
+  port: number,
+  options?: { agent?: AgentAdapter },
+): Promise<{ server: Server; port: number }> {
   const live = new Live();
+  const agent = options?.agent;
   const server = createServer((req, res) => {
-    void handle(req, res, store, live).catch((err: unknown) => {
+    void handle(req, res, store, live, agent).catch((err: unknown) => {
       if (err instanceof RegisterError || err instanceof ConversationError) {
         send(res, err.status, { error: err.message });
         return;
@@ -35,24 +42,33 @@ export function startServer(store: Store, port: number): Promise<{ server: Serve
 }
 
 /** 分发登记和对话接口。对话的实时推送在命中后直接占用这条连接。 */
-async function handle(req: IncomingMessage, res: ServerResponse, store: Store, live: Live): Promise<void> {
+async function handle(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: Store,
+  live: Live,
+  agent: AgentAdapter | undefined,
+): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = decodeURIComponent(url.pathname);
   const method = req.method ?? "GET";
 
-  if (await handleConversation(req, res, store, live, method, pathname, url)) return;
+  if (await handleConversation(req, res, store, live, agent, method, pathname, url)) return;
 
+  /** GET /api/projects/list：列出已登记的仓库。 */
   if (method === "GET" && pathname === "/api/projects/list") {
     send(res, 200, { projects: store.listProjects() });
     return;
   }
 
+  /** POST /api/projects/add：登记仓库。本机目录不合法时不写入。 */
   if (method === "POST" && pathname === "/api/projects/add") {
     const project = await registerProject(store, await readJson(req));
     send(res, 201, { project });
     return;
   }
 
+  /** PATCH /api/projects/update/:id：修改已有仓库。仓库不存在或目录不合法时不写入。 */
   const match = /^\/api\/projects\/update\/([^/]+)$/.exec(pathname);
   if (match && method === "PATCH") {
     const project = await updateProject(store, match[1], await readJson(req));
@@ -69,32 +85,48 @@ async function handleConversation(
   res: ServerResponse,
   store: Store,
   live: Live,
+  agent: AgentAdapter | undefined,
   method: string,
   pathname: string,
   url: URL,
 ): Promise<boolean> {
+  /** GET /api/conversations：列出对话。带 projectId 时只返回该仓库下的。 */
   if (method === "GET" && pathname === "/api/conversations") {
     const projectId = url.searchParams.get("projectId")?.trim() || undefined;
     send(res, 200, { conversations: listConversations(store, projectId) });
     return true;
   }
+  /** POST /api/conversations：在已登记的仓库下新建对话，状态为澄清中。 */
   if (method === "POST" && pathname === "/api/conversations") {
     send(res, 201, { conversation: createConversation(store, await readJson(req)) });
     return true;
   }
 
+  /** GET /api/conversations/:id/events：用 SSE 推送这条对话的新消息、状态和删除。 */
   const events = /^\/api\/conversations\/([^/]+)\/events$/.exec(pathname);
   if (events && method === "GET") {
     streamEvents(req, res, store, live, events[1]);
     return true;
   }
 
-  const messages = /^\/api\/conversations\/([^/]+)\/messages$/.exec(pathname);
-  if (messages && method === "POST") {
-    send(res, 201, { message: addMessage(store, live, messages[1], await readJson(req)) });
+  /** POST /api/conversations/:id/confirm：确认变更卡并冻结。之后的澄清回复不能再覆盖它。 */
+  const confirm = /^\/api\/conversations\/([^/]+)\/confirm$/.exec(pathname);
+  if (confirm && method === "POST") {
+    await readJson(req);
+    send(res, 200, { conversation: confirmCard(store, live, confirm[1]) });
     return true;
   }
 
+  /** POST /api/conversations/:id/messages：写入一条消息。使用人的消息会接着走澄清。 */
+  const messages = /^\/api\/conversations\/([^/]+)\/messages$/.exec(pathname);
+  if (messages && method === "POST") {
+    const message = addMessage(store, live, messages[1], await readJson(req));
+    if (message.role === "user" && agent) await runClarify(store, live, agent, messages[1]);
+    send(res, 201, { message });
+    return true;
+  }
+
+  /** GET /api/conversations/:id：读取一条对话和它的全部消息。DELETE：删除这条对话及其消息、运行记录。 */
   const one = /^\/api\/conversations\/([^/]+)\/?$/.exec(pathname);
   if (one && method === "GET") {
     send(res, 200, readConversation(store, one[1]));

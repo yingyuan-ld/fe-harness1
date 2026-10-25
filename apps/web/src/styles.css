@@ -123,6 +123,7 @@ button.thread-delete {
 .bubble span { font-size: 12px; color: #6d675c; }
 .bubble.user { background: #e7f0ea; }
 .card h2, .card h3 { margin: 0 0 6px; font-size: 16px; }
+.card .actions { margin-top: 8px; }
 .card ul { margin: 0 0 8px; padding-left: 18px; }
 .card.warn { border-color: #e2c2a2; background: #fff8f1; }
 .composer { border-top: 1px solid #e4dccb; display: grid; gap: 8px; }

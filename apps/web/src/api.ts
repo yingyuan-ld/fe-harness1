@@ -22,6 +22,8 @@ export type Conversation = {
   status: Status;
   title: string;
   changeCard: unknown;
+  /** 使用人点过「按这个开发」后为真，这张卡不再被新的澄清覆盖。 */
+  cardFrozen: boolean;
   previewUrl: string | null;
   previewStatus: "pending" | "ready" | "missing" | null;
   mrUrl: string | null;
@@ -69,6 +71,14 @@ export function getConversation(id: string): Promise<{ conversation: Conversatio
 /** 删除一条对话和它的消息。 */
 export function deleteConversation(id: string): Promise<void> {
   return request(`/api/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** 确认当前变更卡。确认后这张卡冻结。 */
+export function confirmConversation(id: string): Promise<{ conversation: Conversation }> {
+  return request(`/api/conversations/${encodeURIComponent(id)}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 /** 把使用人的原文写入这条对话。 */

@@ -46,6 +46,8 @@ export type Thread = {
   status: Status;
   messages: ChatMessage[];
   changeCard: ChangeCard | null;
+  /** 已经确认，不再因为补充而换卡。 */
+  cardFrozen: boolean;
   previewUrl: string | null;
   previewStatus: "pending" | "ready" | "missing" | null;
   mrUrl: string | null;

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/conversation.test.ts"
+    "test": "tsx --test src/conversation.test.ts src/card.test.ts src/clarify.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"

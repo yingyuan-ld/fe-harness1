@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { isOneOf, MESSAGE_ROLES, type MessageRecord, type MessageRole, type Store } from "../db/index.js";
+import { isOneOf, MESSAGE_ROLES, type ConversationRecord, type MessageRecord, type MessageRole, type Store } from "../db/index.js";
+import { readStoredCard, type ChangeCard } from "./card.js";
 
 /** 对话接口返回给调用方的错误。status 是 HTTP 状态码。 */
 export class ConversationError extends Error {
@@ -11,8 +12,16 @@ export class ConversationError extends Error {
   }
 }
 
+/** 返回给页面的对话。变更卡是解析后的字段，冻结与否单独标出。 */
+export type ConversationView = Omit<ConversationRecord, "changeCard"> & {
+  changeCard: ChangeCard | null;
+  cardFrozen: boolean;
+  title: string;
+};
+
 export type LiveEvent =
   | { type: "message"; message: MessageRecord }
+  | { type: "conversation"; conversation: ConversationView }
   | { type: "deleted"; conversationId: string };
 
 type Listener = (event: LiveEvent) => void;
@@ -49,16 +58,13 @@ export function createConversation(store: Store, body: unknown) {
   const projectId = projectIdOf(body);
   if (!store.project(projectId)) throw new ConversationError("仓库不存在", 404);
   const conversation = store.insertConversation({ id: randomUUID(), projectId });
-  return { ...conversation, title: "新对话" };
+  return presentConversation(store, conversation);
 }
 
 /** 列出对话。传入仓库 id 时只返回该仓库下的。最近更新的在前。 */
 export function listConversations(store: Store, projectId?: string) {
   const conversations = store.listConversations(projectId ? { projectId } : {});
-  return conversations.map((conversation) => ({
-    ...conversation,
-    title: titleOf(store.messages(conversation.id)),
-  }));
+  return conversations.map((conversation) => presentConversation(store, conversation));
 }
 
 /** 读取一条对话和它的全部消息。提示消息也返回，由页面决定是否显示。 */
@@ -66,7 +72,7 @@ export function readConversation(store: Store, id: string) {
   const conversation = store.conversation(id);
   if (!conversation) throw new ConversationError("对话不存在", 404);
   const messages = store.messages(id);
-  return { conversation: { ...conversation, title: titleOf(messages) }, messages };
+  return { conversation: presentConversation(store, conversation), messages };
 }
 
 /** 删除对话及其消息、运行记录，并通知已打开的页面。 */
@@ -87,11 +93,28 @@ export function addMessage(store: Store, live: Live, conversationId: string, bod
     body: input.body,
     images: input.images,
     runId: null,
-    createdAt: Date.now(),
+    createdAt: nextTime(store, conversationId),
   });
   store.patchConversation(conversationId, {});
   live.publish(conversationId, { type: "message", message });
   return message;
+}
+
+/** 给页面的对话形状。变更卡去掉冻结标记，冻结与否用 cardFrozen 表示。 */
+export function presentConversation(store: Store, conversation: ConversationRecord): ConversationView {
+  const stored = readStoredCard(conversation.changeCard);
+  return {
+    ...conversation,
+    changeCard: stored?.card ?? null,
+    cardFrozen: stored?.frozen ?? false,
+    title: titleOf(store.messages(conversation.id)),
+  };
+}
+
+/** 同一条对话里的消息时间严格递增，避免同一毫秒里顺序被 id 打乱。 */
+function nextTime(store: Store, conversationId: string): number {
+  const latest = store.messages(conversationId).reduce((max, item) => Math.max(max, item.createdAt), 0);
+  return Math.max(Date.now(), latest + 1);
 }
 
 /** 用第一条使用人消息做标题。还没有使用人消息时叫新对话。 */
