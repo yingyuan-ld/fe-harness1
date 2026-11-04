@@ -8,21 +8,25 @@ import {
   createConversation,
   listConversations,
   Live,
+  presentConversation,
   readConversation,
   removeConversation,
 } from "./conversations.js";
+import { cancelCoding, runImplement, runRevise } from "./implement.js";
+import { isFrozenCard } from "./card.js";
 import { RegisterError, registerProject, updateProject } from "./registry.js";
 
 /** 在本机启动登记和对话接口。传入 agent 时，使用人的消息会走澄清。端口为 0 时由系统分配。 */
 export function startServer(
   store: Store,
   port: number,
-  options?: { agent?: AgentAdapter },
+  options?: { agent?: AgentAdapter; dataDir?: string },
 ): Promise<{ server: Server; port: number }> {
   const live = new Live();
   const agent = options?.agent;
+  const dataDir = options?.dataDir;
   const server = createServer((req, res) => {
-    void handle(req, res, store, live, agent).catch((err: unknown) => {
+    void handle(req, res, store, live, agent, dataDir).catch((err: unknown) => {
       if (err instanceof RegisterError || err instanceof ConversationError) {
         send(res, err.status, { error: err.message });
         return;
@@ -48,12 +52,13 @@ async function handle(
   store: Store,
   live: Live,
   agent: AgentAdapter | undefined,
+  dataDir: string | undefined,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = decodeURIComponent(url.pathname);
   const method = req.method ?? "GET";
 
-  if (await handleConversation(req, res, store, live, agent, method, pathname, url)) return;
+  if (await handleConversation(req, res, store, live, agent, dataDir, method, pathname, url)) return;
 
   /** GET /api/projects/list：列出已登记的仓库。 */
   if (method === "GET" && pathname === "/api/projects/list") {
@@ -86,6 +91,7 @@ async function handleConversation(
   store: Store,
   live: Live,
   agent: AgentAdapter | undefined,
+  dataDir: string | undefined,
   method: string,
   pathname: string,
   url: URL,
@@ -109,19 +115,51 @@ async function handleConversation(
     return true;
   }
 
-  /** POST /api/conversations/:id/confirm：确认变更卡并冻结。之后的澄清回复不能再覆盖它。 */
+  /** POST /api/conversations/:id/confirm：确认变更卡并冻结，然后在工作副本里开始开发。 */
   const confirm = /^\/api\/conversations\/([^/]+)\/confirm$/.exec(pathname);
   if (confirm && method === "POST") {
     await readJson(req);
-    send(res, 200, { conversation: confirmCard(store, live, confirm[1]) });
+    const frozen = confirmCard(store, live, confirm[1]);
+    if (agent && dataDir) {
+      try {
+        await runImplement(store, live, agent, dataDir, confirm[1]);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    const latest = store.conversation(confirm[1]);
+    send(res, 200, { conversation: latest ? presentConversation(store, latest) : frozen });
     return true;
   }
 
-  /** POST /api/conversations/:id/messages：写入一条消息。使用人的消息会接着走澄清。 */
+  /** POST /api/conversations/:id/cancel：取消正在进行的实现或返工。 */
+  const cancel = /^\/api\/conversations\/([^/]+)\/cancel$/.exec(pathname);
+  if (cancel && method === "POST") {
+    await readJson(req);
+    await cancelCoding(store, live, cancel[1]);
+    const latest = store.conversation(cancel[1]);
+    if (!latest) throw new ConversationError("对话不存在", 404);
+    send(res, 200, { conversation: presentConversation(store, latest) });
+    return true;
+  }
+
+  /** POST /api/conversations/:id/messages：写入一条消息。开发开始后的使用人消息走返工，否则走澄清。 */
   const messages = /^\/api\/conversations\/([^/]+)\/messages$/.exec(pathname);
   if (messages && method === "POST") {
     const message = addMessage(store, live, messages[1], await readJson(req));
-    if (message.role === "user" && agent) await runClarify(store, live, agent, messages[1]);
+    const current = store.conversation(messages[1]);
+    if (
+      message.role === "user" &&
+      agent &&
+      dataDir &&
+      current &&
+      isFrozenCard(current.changeCard) &&
+      current.implementAgentId
+    ) {
+      await runRevise(store, live, agent, dataDir, messages[1], message.body);
+    } else if (message.role === "user" && agent) {
+      await runClarify(store, live, agent, messages[1]);
+    }
     send(res, 201, { message });
     return true;
   }

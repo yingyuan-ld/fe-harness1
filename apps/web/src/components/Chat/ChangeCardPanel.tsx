@@ -14,7 +14,7 @@ export function ChangeCardPanel({
   const [confirming, setConfirming] = useState(false);
   const card = readCard(conversation.changeCard);
 
-  /** 冻结当前变更卡。实现还没开始，状态先停在待确认。 */
+  /** 冻结当前变更卡，并在工作副本里开始开发。 */
   function confirm() {
     const id = conversation.id;
     if (!id || confirming || conversation.cardFrozen) return;

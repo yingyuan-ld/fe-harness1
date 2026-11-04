@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isOneOf, MESSAGE_ROLES, type ConversationRecord, type MessageRecord, type MessageRole, type Store } from "../db/index.js";
 import { readStoredCard, type ChangeCard } from "./card.js";
+import { isRoundRunning } from "./rounds.js";
 
 /** 对话接口返回给调用方的错误。status 是 HTTP 状态码。 */
 export class ConversationError extends Error {
@@ -17,6 +18,8 @@ export type ConversationView = Omit<ConversationRecord, "changeCard"> & {
   changeCard: ChangeCard | null;
   cardFrozen: boolean;
   title: string;
+  /** 实现或返工还在进行，页面应锁住输入并允许取消。 */
+  busy: boolean;
 };
 
 export type LiveEvent =
@@ -108,6 +111,7 @@ export function presentConversation(store: Store, conversation: ConversationReco
     changeCard: stored?.card ?? null,
     cardFrozen: stored?.frozen ?? false,
     title: titleOf(store.messages(conversation.id)),
+    busy: isRoundRunning(conversation.id),
   };
 }
 

@@ -24,6 +24,8 @@ export type Conversation = {
   changeCard: unknown;
   /** 使用人点过「按这个开发」后为真，这张卡不再被新的澄清覆盖。 */
   cardFrozen: boolean;
+  /** 实现或返工还在进行。缺省时按状态判断。 */
+  busy?: boolean;
   previewUrl: string | null;
   previewStatus: "pending" | "ready" | "missing" | null;
   mrUrl: string | null;
@@ -76,6 +78,14 @@ export function deleteConversation(id: string): Promise<void> {
 /** 确认当前变更卡。确认后这张卡冻结。 */
 export function confirmConversation(id: string): Promise<{ conversation: Conversation }> {
   return request(`/api/conversations/${encodeURIComponent(id)}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/** 取消正在进行的实现或返工。 */
+export function cancelRound(id: string): Promise<{ conversation: Conversation }> {
+  return request(`/api/conversations/${encodeURIComponent(id)}/cancel`, {
     method: "POST",
     body: JSON.stringify({}),
   });

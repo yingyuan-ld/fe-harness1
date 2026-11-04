@@ -1,6 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { getConversation, sendMessage, type Conversation, type ConversationMessage } from "../../api";
+import { cancelRound, getConversation, sendMessage, type Conversation, type ConversationMessage } from "../../api";
 import { appStore } from "../../store";
 import { canSend, STATUS_LABEL } from "../../thread";
 import { mergeMessages } from "./detail";
@@ -17,9 +17,10 @@ export const Composer = observer(function Composer({
 }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const { error } = appStore;
-  const busy = !canSend(conversation.status);
-  const locked = busy || sending;
+  const roundBusy = conversation.busy === true || (conversation.busy == null && !canSend(conversation.status));
+  const locked = roundBusy || sending || cancelling;
 
   /** 把使用人的话写入当前对话。失败时保留输入，原因显示在输入框上方。 */
   function send() {
@@ -43,10 +44,35 @@ export const Composer = observer(function Composer({
       .finally(() => setSending(false));
   }
 
+  /** 停掉正在进行的实现或返工。停掉之后可以再发。 */
+  function cancel() {
+    const id = conversation.id;
+    if (!id || cancelling || !conversation.busy) return;
+    setCancelling(true);
+    appStore.setError("");
+    cancelRound(id)
+      .then(() => getConversation(id))
+      .then((latest) => {
+        if (appStore.activeId !== id) return;
+        setConversation(latest.conversation);
+        setMessages(latest.messages);
+        appStore.refreshList();
+      })
+      .catch((err: unknown) => {
+        appStore.setError(err instanceof Error ? err.message : "没能取消");
+      })
+      .finally(() => setCancelling(false));
+  }
+
   return (
     <footer className="composer">
       <div className="statusline">
         <strong>{STATUS_LABEL[conversation.status]}</strong>
+        {conversation.busy ? (
+          <button type="button" onClick={cancel} disabled={cancelling}>
+            {cancelling ? "正在取消…" : "取消本轮"}
+          </button>
+        ) : null}
         {conversation.previewStatus === "ready" && conversation.previewUrl ? (
           <a href={conversation.previewUrl} target="_blank" rel="noreferrer">
             打开预览
@@ -64,7 +90,7 @@ export const Composer = observer(function Composer({
       <div className="entry">
         <textarea
           value={text}
-          placeholder={busy ? "这一轮还在进行" : "描述要改的页面和期望"}
+          placeholder={roundBusy ? "这一轮还在进行" : "描述要改的页面和期望"}
           disabled={locked}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {

@@ -1,3 +1,13 @@
+import { randomUUID } from "node:crypto";
+import { progressPhrase } from "./progress.js";
+
+/** 这一轮被取消。等待结束的一方据此收尾，不再采用正文。 */
+export class RunCancelled extends Error {
+  constructor() {
+    super("这轮已取消");
+  }
+}
+
 /** 一张随提示送出的图片。一轮最多四张。 */
 export type AgentImage = {
   data: string;
@@ -41,12 +51,26 @@ export class FakeAgent implements AgentAdapter {
   replies: string[] = [];
   /** 下一次结束时报告的新分支。 */
   reportedBranches: string[] = [];
+  /** 已经送出的提示，按发送顺序保留。 */
+  readonly prompts: string[] = [];
+  /** 下一次发送时按工具名收成进度短句。 */
+  tools: Array<{ name: string; detail?: string }> = [];
+  /** 判断工具是不是在跑登记的测试命令。 */
+  progressCommand = "";
+  /** 为真时，wait 停住，直到 cancel 或 release。 */
+  hold = false;
   /** 结束前调用，测试用它把登记目录改脏。 */
   beforeWait?: (cwd: string) => void;
   readonly createdCwd: string[] = [];
   readonly resumed: string[] = [];
   private seq = 0;
   private readonly cwdOf = new Map<string, string>();
+  private readonly held: Array<() => void> = [];
+
+  /** 放行最早一轮被停住的 wait。 */
+  release(): void {
+    this.held.shift()?.();
+  }
 
   async create(input: { cwd: string }): Promise<AgentSession> {
     const agentId = `fake-${++this.seq}`;
@@ -67,18 +91,26 @@ export class FakeAgent implements AgentAdapter {
       send: async ({ prompt, images }) => {
         if ((images?.length ?? 0) > 4) throw new Error("最多四张图");
         const cwd = this.cwdOf.get(agentId) ?? "";
+        this.prompts.push(prompt);
         const scripted = this.replies.shift();
         const text = scripted ?? cardFromSummary(prompt);
         const branches = [...this.reportedBranches];
-        const id = `run-${++this.seq}`;
+        const phrases = this.tools.splice(0).map((tool) => progressPhrase(tool.name, tool.detail ?? "", this.progressCommand));
+        const id = randomUUID();
+        const slot = holdSlot(this.hold, this.held);
         return {
           id,
-          events: emptyEvents(),
+          events: phraseEvents(phrases),
           wait: async () => {
+            await slot.gate;
+            if (slot.cancelled) throw new RunCancelled();
             this.beforeWait?.(cwd);
             return { text, branches };
           },
-          cancel: async () => undefined,
+          cancel: async () => {
+            slot.cancelled = true;
+            slot.release();
+          },
         };
       },
       dispose: async () => undefined,
@@ -110,6 +142,17 @@ function summaryLine(prompt: string): string {
   return line.length > 40 ? `${line.slice(0, 40)}…` : line;
 }
 
-async function* emptyEvents(): AsyncIterable<{ phrase: string }> {
-  /* 假 Agent 没有工具事件。 */
+function holdSlot(hold: boolean, held: Array<() => void>): { gate: Promise<void>; release: () => void; cancelled: boolean } {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = () => resolve();
+  });
+  const slot = { gate, release, cancelled: false };
+  if (hold) held.push(slot.release);
+  else slot.release();
+  return slot;
+}
+
+async function* phraseEvents(phrases: string[]): AsyncIterable<{ phrase: string }> {
+  for (const phrase of phrases) yield { phrase };
 }
