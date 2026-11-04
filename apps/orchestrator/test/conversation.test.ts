@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { type ProjectRecord, Store } from "../db/index.js";
-import { startServer } from "./http.js";
+import { startServer } from "../src/http.js";
 
 test("两个客户端打开同一条对话，一边写入系统消息，另一边通过 SSE 收到", async () => {
   const ctx = await start();

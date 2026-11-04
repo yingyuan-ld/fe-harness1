@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isFrozenCard, parseChangeCard, readStoredCard } from "./card.js";
+import { isFrozenCard, parseChangeCard, readStoredCard } from "../src/card.js";
 
 const cardText = `
 说明一下。

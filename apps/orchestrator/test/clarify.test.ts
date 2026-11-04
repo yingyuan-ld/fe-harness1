@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { type ProjectRecord, Store } from "../db/index.js";
-import { FakeAgent } from "./agent.js";
-import { parseChangeCard } from "./card.js";
-import { clarifyPrompt } from "./clarify-prompt.js";
-import { startServer } from "./http.js";
+import { FakeAgent } from "../src/agent.js";
+import { parseChangeCard } from "../src/card.js";
+import { clarifyPrompt } from "../src/clarify-prompt.js";
+import { startServer } from "../src/http.js";
 
 test("没有夹具时，假 Agent 用对话摘要生成一张能解析的变更卡", async () => {
   const fake = new FakeAgent();
