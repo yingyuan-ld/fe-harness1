@@ -36,7 +36,7 @@ test("创建后出现工作副本和分支，删除后原克隆保持原样", as
     assert.equal(readFileSync(path.join(created.worktreePath, "readme.txt"), "utf8").replace(/\r\n/g, "\n"), "v1\n");
     assert.equal(existsSync(path.join(repo, "note.txt")), false);
     assert.equal(await hasNewCommits(store, conversationId), false);
-    assert.equal(store.conversation(conversationId)?.status, "clarifying");
+    assert.equal(store.conversation(conversationId)?.status, "澄清中");
     assert.deepEqual(snapshot(repo), before);
 
     writeFileSync(path.join(created.worktreePath, "note.txt"), "from-worktree\n");

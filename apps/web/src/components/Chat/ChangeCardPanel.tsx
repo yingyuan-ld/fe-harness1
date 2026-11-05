@@ -31,7 +31,7 @@ export function ChangeCardPanel({
       .finally(() => setConfirming(false));
   }
 
-  if (!card || conversation.status === "clarifying") return null;
+  if (!card || conversation.status === "澄清中") return null;
   return (
     <article className="card">
       <h2>{card.goal}</h2>
@@ -48,7 +48,7 @@ export function ChangeCardPanel({
       </ul>
       <p>{card.summary}</p>
       {conversation.cardFrozen ? <p>已确认，后面按这张卡开发。</p> : null}
-      {conversation.status === "pending_confirm" && !conversation.cardFrozen ? (
+      {conversation.status === "待确认" && !conversation.cardFrozen ? (
         <div className="actions">
           <button type="button" onClick={confirm} disabled={confirming}>
             {confirming ? "正在确认…" : "按这个开发"}

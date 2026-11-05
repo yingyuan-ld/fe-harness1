@@ -15,12 +15,12 @@ export function subscribeConversation(activeId: string, handlers: LiveHandlers):
   const { setConversation, setMessages, setActiveId, setError, refreshList } = handlers;
   if (!activeId) {
     setConversation(null);
-    setMessages([]);
     return () => undefined;
   }
   let closed = false;
   let opened = false;
   const queued: ConversationMessage[] = [];
+  setMessages([]);
   let queuedConversation: Conversation | null = null;
   const source = new EventSource(`/api/conversations/${encodeURIComponent(activeId)}/events`);
   source.onmessage = (event) => {
@@ -57,12 +57,12 @@ export function subscribeConversation(activeId: string, handlers: LiveHandlers):
   getConversation(activeId)
     .then((result) => {
       if (closed) return;
-      opened = true;
       const conversation = queuedConversation?.id === activeId ? queuedConversation : result.conversation;
       queuedConversation = null;
       const extras = queued.splice(0);
       setConversation(conversation);
-      setMessages((current) => mergeMessages(mergeMessages(result.messages, current), extras));
+      setMessages(mergeMessages(result.messages, extras));
+      opened = true;
     })
     .catch((err: unknown) => {
       if (closed) return;

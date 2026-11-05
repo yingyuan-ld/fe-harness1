@@ -1,7 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { openDatabase } from "./open.js";
 import {
-  CONVERSATION_STATUSES,
   ERROR_CLASSES,
   isOneOf,
   MESSAGE_ROLES,
@@ -10,7 +9,6 @@ import {
   RUN_PHASES,
   RUN_STATUSES,
   type ConversationRecord,
-  type ConversationStatus,
   type ErrorClass,
   type MessageRecord,
   type MessageRole,
@@ -148,12 +146,12 @@ export class Store {
   insertConversation(input: {
     id: string;
     projectId: string;
-    status?: ConversationStatus;
+    status?: string;
     createdAt?: number;
   }): ConversationRecord {
     requireText(input.id, "对话 id");
-    const status = input.status ?? "clarifying";
-    if (!isOneOf(CONVERSATION_STATUSES, status)) throw new Error("对话状态无法识别");
+    const status = input.status ?? "澄清中";
+    requireText(status, "对话状态");
     const now = input.createdAt ?? Date.now();
     this.db
       .prepare(
@@ -190,7 +188,7 @@ export class Store {
   patchConversation(id: string, patch: ConversationPatch): ConversationRecord {
     const current = this.requireConversation(id);
     const next: ConversationRecord = { ...current, ...patch, id: current.id, updatedAt: Date.now() };
-    if (!isOneOf(CONVERSATION_STATUSES, next.status)) throw new Error("对话状态无法识别");
+    requireText(next.status, "对话状态");
     if (next.previewStatus !== null && !isOneOf(PREVIEW_STATUSES, next.previewStatus)) {
       throw new Error("预览状态无法识别");
     }
@@ -386,7 +384,6 @@ export class Store {
 
 /** 把数据库行转成对话记录。 */
 function mapConversation(row: ConversationSql): ConversationRecord {
-  if (!isOneOf(CONVERSATION_STATUSES, row.status)) throw new Error("对话状态无法识别");
   if (row.preview_status !== null && !isOneOf(PREVIEW_STATUSES, row.preview_status)) {
     throw new Error("预览状态无法识别");
   }

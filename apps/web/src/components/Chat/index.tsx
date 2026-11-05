@@ -20,7 +20,6 @@ export const Chat = observer(function Chat() {
     () => subscribeConversation(activeId, { setConversation, setMessages, setActiveId, setError, refreshList }),
     [activeId],
   );
-
   if (!project || !conversation || conversation.id !== activeId) return null;
 
   return (

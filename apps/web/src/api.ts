@@ -1,5 +1,3 @@
-import type { Status } from "./thread";
-
 export type Provider = "github" | "gitlab" | "azure-devops";
 
 export type Project = {
@@ -19,7 +17,7 @@ export type ProjectInput = Omit<Project, "id">;
 export type Conversation = {
   id: string;
   projectId: string;
-  status: Status;
+  status: string;
   title: string;
   changeCard: unknown;
   /** 使用人点过「按这个开发」后为真，这张卡不再被新的澄清覆盖。 */

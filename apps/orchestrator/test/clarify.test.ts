@@ -41,7 +41,7 @@ test("假 Agent 回合法变更卡后进入待确认，并在登记目录上创�
     assert.ok(reader);
     incoming = readUntil(
       reader,
-      (item) => item.type === "conversation" && item.conversation?.status === "pending_confirm",
+      (item) => item.type === "conversation" && item.conversation?.status === "待确认",
     );
 
     const posted = await post(ctx.port, `/api/conversations/${id}/messages`, {
@@ -50,12 +50,12 @@ test("假 Agent 回合法变更卡后进入待确认，并在登记目录上创�
     });
     assert.equal(posted.status, 201);
     const event = await withTimeout(incoming, 3000);
-    assert.equal(event.conversation.status, "pending_confirm");
+    assert.equal(event.conversation.status, "待确认");
     assert.equal(event.conversation.changeCard.goal, "把首页标题改一下");
     assert.equal(event.conversation.cardFrozen, false);
 
     const detail = await get(ctx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "pending_confirm");
+    assert.equal(detail.body.conversation.status, "待确认");
     const roles = detail.body.messages.map((item) => item.role);
     assert.deepEqual(roles, ["user", "prompt", "system", "assistant"]);
     const prompt = detail.body.messages.find((item) => item.role === "prompt");
@@ -80,7 +80,7 @@ test("无法解析的回复留在澄清中，此时不能确认", async () => {
     const id = await open(ctx.port, ctx.project.id);
     await post(ctx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改一下" });
     const detail = await get(ctx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "clarifying");
+    assert.equal(detail.body.conversation.status, "澄清中");
     assert.equal(detail.body.conversation.changeCard, null);
     assert.match(detail.body.messages.map((item) => item.body).join("\n"), /没有形成变更卡/);
     const confirm = await post(ctx.port, `/api/conversations/${id}/confirm`, {});
@@ -99,7 +99,7 @@ test("使用人补充后重新出卡", async () => {
     await post(ctx.port, `/api/conversations/${id}/messages`, { role: "user", body: "第一版" });
     await post(ctx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改成第二版" });
     const detail = await get(ctx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "pending_confirm");
+    assert.equal(detail.body.conversation.status, "待确认");
     assert.ok(detail.body.conversation.changeCard);
     assert.equal(detail.body.conversation.changeCard.goal, "第二版");
     assert.equal(agent.createdCwd.length, 1);
@@ -127,7 +127,7 @@ test("确认后变更卡不再被澄清回复覆盖", async () => {
     assert.ok(detail.body.conversation.changeCard);
     assert.equal(detail.body.conversation.changeCard.goal, "保持这张");
     assert.equal(detail.body.conversation.cardFrozen, true);
-    assert.equal(detail.body.conversation.status, "pending_confirm");
+    assert.equal(detail.body.conversation.status, "待确认");
     assert.equal(agent.createdCwd.length, 1);
     assert.equal(agent.resumed.length, 0);
   } finally {
@@ -144,7 +144,7 @@ test("澄清改脏登记目录或拉出新分支时收回改动，并留在澄�
     const id = await open(dirtyCtx.port, dirtyCtx.project.id);
     await post(dirtyCtx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改首页" });
     const detail = await get(dirtyCtx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "clarifying");
+    assert.equal(detail.body.conversation.status, "澄清中");
     assert.equal(detail.body.conversation.changeCard, null);
     assert.equal(existsSync(path.join(dirtyCtx.repo, "dirty.txt")), false);
     assert.match(detail.body.messages.map((item) => item.body).join("\n"), /不允许改仓库/);
@@ -160,7 +160,7 @@ test("澄清改脏登记目录或拉出新分支时收回改动，并留在澄�
     const id = await open(branchCtx.port, branchCtx.project.id);
     await post(branchCtx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改首页" });
     const detail = await get(branchCtx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "clarifying");
+    assert.equal(detail.body.conversation.status, "澄清中");
     assert.equal(detail.body.conversation.changeCard, null);
     const head = git(branchCtx.repo, ["rev-parse", "--abbrev-ref", "HEAD"]);
     assert.equal(head, "main");
@@ -180,7 +180,7 @@ test("只报告了新分支时也不进入待确认", async () => {
     const id = await open(ctx.port, ctx.project.id);
     await post(ctx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改首页" });
     const detail = await get(ctx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "clarifying");
+    assert.equal(detail.body.conversation.status, "澄清中");
     assert.equal(detail.body.conversation.changeCard, null);
   } finally {
     await ctx.close();
@@ -196,7 +196,7 @@ test("登记目录里原本的未提交文件，在澄清结束后还在", async
     const id = await open(ctx.port, ctx.project.id);
     await post(ctx.port, `/api/conversations/${id}/messages`, { role: "user", body: "改标题" });
     const detail = await get(ctx.port, `/api/conversations/${id}`);
-    assert.equal(detail.body.conversation.status, "pending_confirm");
+    assert.equal(detail.body.conversation.status, "待确认");
     assert.equal(existsSync(path.join(ctx.repo, "keep.txt")), true);
   } finally {
     await ctx.close();

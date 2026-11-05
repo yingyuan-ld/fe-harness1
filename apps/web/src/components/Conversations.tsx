@@ -2,7 +2,6 @@ import { observer } from "mobx-react-lite";
 import { useEffect } from "react";
 import { listConversations } from "../api";
 import { appStore } from "../store";
-import { STATUS_LABEL } from "../thread";
 
 /** 侧栏里的对话管理：加载、新建、选中和删除。 */
 export const Conversations = observer(function Conversations() {
@@ -42,7 +41,7 @@ export const Conversations = observer(function Conversations() {
               onClick={() => selectThread(item.id)}
             >
               <span>{item.title}</span>
-              <small>{STATUS_LABEL[item.status]}</small>
+              <small>{item.status}</small>
             </button>
             <button type="button" className="ghost thread-delete" onClick={() => removeThread(item.id, item.title)}>
               删除

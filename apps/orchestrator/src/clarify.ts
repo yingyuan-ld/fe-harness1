@@ -24,7 +24,7 @@ export async function runClarify(store: Store, live: Live, agent: AgentAdapter, 
   const conversation = store.conversation(conversationId);
   if (!conversation) return;
   if (isFrozenCard(conversation.changeCard)) return;
-  if (conversation.status !== "clarifying" && conversation.status !== "pending_confirm") return;
+  if (conversation.status !== "澄清中" && conversation.status !== "待确认") return;
   const project = store.project(conversation.projectId);
   if (!project) return;
   if (store.runs(conversationId).some((run) => run.phase === "clarify" && run.status === "running")) return;
@@ -49,7 +49,7 @@ export async function runClarify(store: Store, live: Live, agent: AgentAdapter, 
       ? await agent.resume(conversation.clarifyAgentId, { cwd: project.localPath })
       : await agent.create({ cwd: project.localPath });
     store.patchConversation(conversationId, {
-      status: "clarifying",
+      status: "澄清中",
       changeCard: null,
       clarifyAgentId: session.agentId,
     });
@@ -104,7 +104,7 @@ export async function runClarify(store: Store, live: Live, agent: AgentAdapter, 
     }
     if (isFrozenCard(store.conversation(conversationId)?.changeCard)) return;
     say(store, live, conversationId, prose || `已整理：${card.summary}`, "assistant");
-    store.patchConversation(conversationId, { status: "pending_confirm", changeCard: card });
+    store.patchConversation(conversationId, { status: "待确认", changeCard: card });
     publish(store, live, conversationId);
   } catch (err) {
     console.error(err);
@@ -125,7 +125,7 @@ export function confirmCard(store: Store, live: Live, conversationId: string): C
   const conversation = store.conversation(conversationId);
   if (!conversation) throw new ConversationError("对话不存在", 404);
   const stored = readStoredCard(conversation.changeCard);
-  if (!stored || conversation.status !== "pending_confirm") {
+  if (!stored || conversation.status !== "待确认") {
     throw new ConversationError("还没有可以确认的变更卡", 400);
   }
   if (!stored.frozen) {
@@ -139,7 +139,7 @@ export function confirmCard(store: Store, live: Live, conversationId: string): C
 function restorePrevious(store: Store, conversationId: string, card: ChangeCard | null): void {
   if (!card) return;
   if (!store.conversation(conversationId)) return;
-  store.patchConversation(conversationId, { status: "pending_confirm", changeCard: card });
+  store.patchConversation(conversationId, { status: "待确认", changeCard: card });
 }
 
 function publish(store: Store, live: Live, conversationId: string): void {

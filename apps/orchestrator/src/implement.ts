@@ -43,14 +43,15 @@ export async function cancelCoding(store: Store, live: Live, conversationId: str
   await current.done;
 }
 
+/** 在工作副本里跑一轮实现或返工。结束后运行记录标为完成，对话状态先留在开发中或返工中。 */
 async function runCoding(
-  store: Store,
-  live: Live,
-  agent: AgentAdapter,
-  dataDir: string,
-  conversationId: string,
-  phase: "implement" | "revise",
-  note = "",
+  store: Store, // 存储库
+  live: Live, // 实时更新
+  agent: AgentAdapter, // 代理适配器
+  dataDir: string, // 数据目录
+  conversationId: string, // 对话 ID
+  phase: "implement" | "revise", // 阶段: 实现或返工
+  note = "", // 备注
 ): Promise<void> {
   if (roundOf(conversationId)) await cancelCoding(store, live, conversationId);
   const conversation = store.conversation(conversationId);
@@ -68,7 +69,7 @@ async function runCoding(
     const session = conversation.implementAgentId
       ? await agent.resume(conversation.implementAgentId, { cwd: place.worktreePath })
       : await agent.create({ cwd: place.worktreePath });
-    const status = phase === "revise" ? "revising" : "developing";
+    const status = phase === "revise" ? "返工中" : "开发中";
     store.patchConversation(conversationId, {
       status,
       implementAgentId: session.agentId,
@@ -121,7 +122,7 @@ async function runCoding(
     const message = err instanceof WorktreeError || err instanceof ConversationError ? err.message : FAILED;
     say(store, live, conversationId, message);
     if (store.conversation(conversationId)) {
-      store.patchConversation(conversationId, { status: "pending_confirm" });
+      store.patchConversation(conversationId, { status: "待确认" });
     }
     publish(store, live, conversationId);
   } finally {
@@ -133,6 +134,7 @@ async function runCoding(
   }
 }
 
+/** 记下这条对话正在跑的一轮，供取消时找到它。finish 在这一轮收尾后放行等待方。 */
 function track(conversationId: string, run: AgentRun, runId: string, phase: "implement" | "revise"): ActiveRound {
   let finish: () => void = () => undefined;
   const done = new Promise<void>((resolve) => {
@@ -143,15 +145,17 @@ function track(conversationId: string, run: AgentRun, runId: string, phase: "imp
   return round;
 }
 
+/** 把仍在运行的记录标为已取消，对话回到待确认，并写一条系统消息。 */
 function settleCancelled(store: Store, live: Live, conversationId: string, runId: string): void {
   const current = store.run(runId);
   if (!current || current.status !== "running") return;
   store.updateRun(runId, { status: "cancelled" });
-  if (store.conversation(conversationId)) store.patchConversation(conversationId, { status: "pending_confirm" });
+  if (store.conversation(conversationId)) store.patchConversation(conversationId, { status: "待确认" });
   say(store, live, conversationId, CANCELLED);
   publish(store, live, conversationId);
 }
 
+/** 取验收报告标记之前的说明。没有标记时用整段正文，空正文用一句结束语。 */
 function proseBeforeReport(text: string): string {
   const marker = "FE_HARNESS_REPORT";
   const start = text.indexOf(marker);
@@ -159,12 +163,14 @@ function proseBeforeReport(text: string): string {
   return prose || "这轮已经结束。";
 }
 
+/** 把当前对话状态推给已打开这条对话的页面。 */
 function publish(store: Store, live: Live, conversationId: string): void {
   const conversation = store.conversation(conversationId);
   if (!conversation) return;
   live.publish(conversationId, { type: "conversation", conversation: presentConversation(store, conversation) });
 }
 
+/** 写入一条消息并推送给页面。正文为空或对话已删除时不写。 */
 function say(
   store: Store,
   live: Live,

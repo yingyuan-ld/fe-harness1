@@ -34,6 +34,7 @@ export function implementPrompt(input: {
   return lines.join("\n");
 }
 
+/** 把变更卡收成提示里的字段文本。没有排除项时写一条（无）。 */
 function formatCard(card: ChangeCard): string {
   return [
     `goal: ${card.goal}`,
@@ -46,6 +47,7 @@ function formatCard(card: ChangeCard): string {
   ].join("\n");
 }
 
+/** 验收报告的格式样例。条目与变更卡的验收标准一一对应。 */
 function reportShape(testCommand: string, acceptance: string[]): string {
   return [
     "FE_HARNESS_REPORT",
@@ -58,6 +60,7 @@ function reportShape(testCommand: string, acceptance: string[]): string {
   ].join("\n");
 }
 
+/** 把使用人的补充逐行收成引用，避免和提示里的指令混在一起。 */
 function quote(text: string): string {
   return text
     .trim()

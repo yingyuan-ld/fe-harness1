@@ -36,7 +36,7 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
   agent.progressCommand = "npm test";
   agent.tools.push({ name: "edit", detail: "src/App.tsx" });
   store.saveProject(project(repo));
-  store.insertConversation({ id: conversationId, projectId: "p1", status: "pending_confirm" });
+  store.insertConversation({ id: conversationId, projectId: "p1", status: "待确认" });
   store.patchConversation(conversationId, {
     changeCard: {
       goal: "把首页标题改一下",
@@ -57,7 +57,7 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     assert.match(prompt, /npm test/);
     assert.match(prompt, /FE_HARNESS_REPORT/);
     assert.match(prompt, /不要修改 package.json 的 scripts/);
-    assert.equal(store.conversation(conversationId)?.status, "developing");
+    assert.equal(store.conversation(conversationId)?.status, "开发中");
     assert.equal(store.conversation(conversationId)?.branch, "fe/abcdef12");
     assert.equal(existsSync(store.conversation(conversationId)?.worktreePath ?? ""), true);
     assert.equal(agent.createdCwd.length, 1);
@@ -78,7 +78,7 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
 
     await cancelCoding(store, live, conversationId);
     await second;
-    assert.equal(store.conversation(conversationId)?.status, "pending_confirm");
+    assert.equal(store.conversation(conversationId)?.status, "待确认");
     assert.equal(store.runs(conversationId).every((item) => item.status === "cancelled"), true);
 
     agent.hold = false;
@@ -87,7 +87,7 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     assert.equal(agent.createdCwd.length, 1);
     assert.equal(agent.resumed.length, 2);
     assert.equal(store.runs(conversationId).filter((item) => item.phase === "revise" && item.status === "finished").length, 1);
-    assert.equal(store.conversation(conversationId)?.status, "revising");
+    assert.equal(store.conversation(conversationId)?.status, "返工中");
     assert.equal(store.conversation(conversationId)?.implementAgentId, agent.resumed[0]);
   } finally {
     agent.release();

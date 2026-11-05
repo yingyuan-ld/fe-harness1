@@ -1,30 +1,8 @@
 /**
  * 页面上一条对话的公共约定。
- * 定义对话状态和中文标签，并校验变更卡、判断当前状态能不能发送。
- * 聊天区、侧栏和接口类型都从这里取，不请求接口，也不负责画界面。
+ * 校验变更卡，并判断当前状态能不能发送。
+ * 聊天区从这里取，不请求接口，也不负责画界面。
  */
-
-export const STATUSES = [
-  "clarifying",
-  "pending_confirm",
-  "developing",
-  "awaiting_acceptance",
-  "awaiting_merge",
-  "failed",
-  "revising",
-] as const;
-
-export type Status = (typeof STATUSES)[number];
-
-export const STATUS_LABEL: Record<Status, string> = {
-  clarifying: "澄清中",
-  pending_confirm: "待确认",
-  developing: "开发中",
-  awaiting_acceptance: "待验收",
-  awaiting_merge: "待合并",
-  failed: "未通过",
-  revising: "返工中",
-};
 
 export type ChangeCard = {
   goal: string;
@@ -49,8 +27,8 @@ export function readCard(value: unknown): ChangeCard | null {
   };
 }
 
-export function canSend(status: Status): boolean {
-  return status !== "developing" && status !== "revising";
+export function canSend(status: string): boolean {
+  return status !== "开发中" && status !== "返工中";
 }
 
 function isStringList(value: unknown): value is string[] {

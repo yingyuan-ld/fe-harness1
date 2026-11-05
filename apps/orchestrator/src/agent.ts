@@ -72,6 +72,7 @@ export class FakeAgent implements AgentAdapter {
     this.held.shift()?.();
   }
 
+  /** 新建一个假 Agent，并记下它的工作目录。 */
   async create(input: { cwd: string }): Promise<AgentSession> {
     const agentId = `fake-${++this.seq}`;
     this.createdCwd.push(input.cwd);
@@ -79,12 +80,14 @@ export class FakeAgent implements AgentAdapter {
     return this.session(agentId);
   }
 
+  /** 按已有 id 恢复。不另编编号，只记下这次恢复和工作目录。 */
   async resume(agentId: string, input: { cwd: string }): Promise<AgentSession> {
     this.resumed.push(agentId);
     this.cwdOf.set(agentId, input.cwd);
     return this.session(agentId);
   }
 
+  /** 组装一次可复用的会话。发送时取出预置回复，没有则按摘要生成变更卡。 */
   private session(agentId: string): AgentSession {
     return {
       agentId,
@@ -118,6 +121,7 @@ export class FakeAgent implements AgentAdapter {
   }
 }
 
+/** 没有预置回复时，用摘要拼一张能通过校验的变更卡。 */
 function cardFromSummary(prompt: string): string {
   const summary = summaryLine(prompt);
   return [
@@ -142,6 +146,7 @@ function summaryLine(prompt: string): string {
   return line.length > 40 ? `${line.slice(0, 40)}…` : line;
 }
 
+/** 造一个可停住的等待点。hold 为假时立即放行；为真时登记 release，等取消或主动放行。 */
 function holdSlot(hold: boolean, held: Array<() => void>): { gate: Promise<void>; release: () => void; cancelled: boolean } {
   let release: () => void = () => undefined;
   const gate = new Promise<void>((resolve) => {
@@ -153,6 +158,7 @@ function holdSlot(hold: boolean, held: Array<() => void>): { gate: Promise<void>
   return slot;
 }
 
+/** 按顺序送出预先放好的进度短句。 */
 async function* phraseEvents(phrases: string[]): AsyncIterable<{ phrase: string }> {
   for (const phrase of phrases) yield { phrase };
 }

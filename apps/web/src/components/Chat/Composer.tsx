@@ -2,7 +2,7 @@ import { observer } from "mobx-react-lite";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { cancelRound, getConversation, sendMessage, type Conversation, type ConversationMessage } from "../../api";
 import { appStore } from "../../store";
-import { canSend, STATUS_LABEL } from "../../thread";
+import { canSend } from "../../thread";
 import { mergeMessages } from "./detail";
 
 /** 输入区：状态、预览、合并请求和发送。 */
@@ -67,7 +67,7 @@ export const Composer = observer(function Composer({
   return (
     <footer className="composer">
       <div className="statusline">
-        <strong>{STATUS_LABEL[conversation.status]}</strong>
+        <strong>{conversation.status}</strong>
         {conversation.busy ? (
           <button type="button" onClick={cancel} disabled={cancelling}>
             {cancelling ? "正在取消…" : "取消本轮"}

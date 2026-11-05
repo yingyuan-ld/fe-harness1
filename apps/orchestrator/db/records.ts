@@ -7,19 +7,6 @@ export const PROVIDERS = [
 /** 代码托管的取值。 */
 export type Provider = (typeof PROVIDERS)[number];
 
-/** 对话状态。 */
-export const CONVERSATION_STATUSES = [
-  "clarifying", // 澄清中
-  "pending_confirm", // 待确认
-  "developing", // 开发中
-  "awaiting_acceptance", // 待验收
-  "awaiting_merge", // 待合并
-  "failed", // 未通过
-  "revising", // 返工中
-] as const;
-/** 对话状态的取值。 */
-export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
-
 /** 预览状态。 */
 export const PREVIEW_STATUSES = [
   "pending", // 正在启动
@@ -94,8 +81,8 @@ export type ConversationRecord = {
   id: string;
   /** 所属仓库。 */
   projectId: string;
-  /** 对话状态。 */
-  status: ConversationStatus;
+  /** 对话状态，直接使用中文，例如澄清中、待确认。 */
+  status: string;
   /** 变更卡。确认后冻结，实现和返工都按这张卡执行。 */
   changeCard: unknown;
   /** 澄清 Agent 的 id。 */
