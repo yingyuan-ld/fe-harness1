@@ -104,6 +104,7 @@ button.thread-delete {
   border-bottom: 1px solid #e4dccb;
 }
 .room-head h1 { margin: 0; font-size: 22px; }
+.room-note { margin: 6px 0 0; color: #6d675c; font-size: 13px; }
 .empty { margin: auto; max-width: 520px; display: grid; gap: 12px; }
 .log {
   flex: 1;

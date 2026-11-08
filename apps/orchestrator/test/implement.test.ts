@@ -87,7 +87,9 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     assert.equal(agent.createdCwd.length, 1);
     assert.equal(agent.resumed.length, 2);
     assert.equal(store.runs(conversationId).filter((item) => item.phase === "revise" && item.status === "finished").length, 1);
-    assert.equal(store.conversation(conversationId)?.status, "返工中");
+    assert.equal(store.conversation(conversationId)?.status, "未通过");
+    const verdict = store.conversation(conversationId)?.report as { unmet?: string[] };
+    assert.ok(verdict.unmet?.includes("没有验收报告"));
     assert.equal(store.conversation(conversationId)?.implementAgentId, agent.resumed[0]);
   } finally {
     agent.release();

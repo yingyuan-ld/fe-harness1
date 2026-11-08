@@ -24,7 +24,7 @@ export const Chat = observer(function Chat() {
 
   return (
     <>
-      <ChatHeader name={project.name} status={conversation.status} />
+      <ChatHeader name={project.name} status={conversation.status} id={conversation.id} />
       <div className="log">
         <MessageList messages={messages} />
         <ChangeCardPanel conversation={conversation} setConversation={setConversation} />

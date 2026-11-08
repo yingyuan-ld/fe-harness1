@@ -1,4 +1,5 @@
 import type { Store } from "../db/index.js";
+import { acceptanceVerdict } from "./accept.js";
 import { RunCancelled, type AgentAdapter, type AgentRun } from "./agent.js";
 import { readStoredCard } from "./card.js";
 import { addMessage, ConversationError, type Live, presentConversation } from "./conversations.js";
@@ -43,7 +44,7 @@ export async function cancelCoding(store: Store, live: Live, conversationId: str
   await current.done;
 }
 
-/** 在工作副本里跑一轮实现或返工。结束后运行记录标为完成，对话状态先留在开发中或返工中。 */
+/** 在工作副本里跑一轮实现或返工。结束后按验收报告进入待验收或未通过。 */
 async function runCoding(
   store: Store, // 存储库
   live: Live, // 实时更新
@@ -111,6 +112,12 @@ async function runCoding(
     }
     store.updateRun(runId, { status: "finished" });
     say(store, live, conversationId, proseBeforeReport(result.text), "assistant");
+    const verdict = await acceptanceVerdict(store, conversationId, result.text);
+    store.patchConversation(conversationId, {
+      status: verdict.passed ? "待验收" : "未通过",
+      report: verdict,
+    });
+    say(store, live, conversationId, verdict.passed ? "验收报告已通过。" : verdict.unmet.join("\n"));
     publish(store, live, conversationId);
   } catch (err) {
     if (round?.cancelled || err instanceof RunCancelled) {
