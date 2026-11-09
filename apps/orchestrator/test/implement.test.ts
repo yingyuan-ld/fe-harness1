@@ -7,7 +7,8 @@ import test from "node:test";
 import { type ProjectRecord, Store } from "../db/index.js";
 import { FakeAgent } from "../src/agent.js";
 import { Live } from "../src/conversations.js";
-import { cancelCoding, runImplement, runRevise } from "../src/implement.js";
+import { cancelCoding, passPreview, runImplement, runRevise } from "../src/implement.js";
+import { stopPreview } from "../src/preview.js";
 import { progressPhrase } from "../src/progress.js";
 import { removeWorktree } from "../src/worktree.js";
 
@@ -54,8 +55,8 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     const prompt = agent.prompts[0] ?? "";
     assert.match(prompt, /把首页标题改一下/);
     assert.match(prompt, /fe\/abcdef12/);
-    assert.match(prompt, /npm test/);
-    assert.match(prompt, /FE_HARNESS_REPORT/);
+    assert.match(prompt, /改完后在当前分支提交/);
+    assert.doesNotMatch(prompt, /FE_HARNESS_REPORT/);
     assert.match(prompt, /不要修改 package.json 的 scripts/);
     assert.equal(store.conversation(conversationId)?.status, "开发中");
     assert.equal(store.conversation(conversationId)?.branch, "fe/abcdef12");
@@ -89,13 +90,74 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     assert.equal(store.runs(conversationId).filter((item) => item.phase === "revise" && item.status === "finished").length, 1);
     assert.equal(store.conversation(conversationId)?.status, "未通过");
     const verdict = store.conversation(conversationId)?.report as { unmet?: string[] };
-    assert.ok(verdict.unmet?.includes("没有验收报告"));
+    assert.ok(verdict.unmet?.includes("相对起始分支没有新提交"));
+    assert.throws(() => passPreview(store, live, conversationId), /现在还不能通过/);
     assert.equal(store.conversation(conversationId)?.implementAgentId, agent.resumed[0]);
   } finally {
     agent.release();
     await first.catch(() => undefined);
     if (store.conversation(conversationId)?.worktreePath) {
       await removeWorktree(store, dataDir, conversationId).catch(() => undefined);
+    }
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("有新提交后进入待验收并给出预览地址，通过后进入待合并", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "fe-m7-preview-"));
+  const repo = path.join(root, "repo");
+  const dataDir = path.join(root, "data");
+  const stub = path.join(root, "preview-stub.js");
+  const id = "bbbbbbbb-3456-7890-abcd-ef1234567890";
+  mkdirSync(repo);
+  git(repo, ["init", "-b", "main"]);
+  writeFileSync(path.join(repo, "readme.txt"), "v1\n");
+  git(repo, ["add", "readme.txt"]);
+  git(repo, ["commit", "-m", "init"]);
+  writeFileSync(
+    stub,
+    "const host = process.argv[process.argv.indexOf('--host') + 1];\n" +
+      "const port = process.argv[process.argv.indexOf('--port') + 1];\n" +
+      "console.log('http://' + host + ':' + port + '/');\n" +
+      "setInterval(() => {}, 1000);\n",
+  );
+
+  const store = new Store(dataDir);
+  const live = new Live();
+  const agent = new FakeAgent();
+  agent.replies.push("改好了。");
+  agent.beforeWait = (cwd) => {
+    writeFileSync(path.join(cwd, "readme.txt"), "v2\n");
+    git(cwd, ["add", "readme.txt"]);
+    git(cwd, ["commit", "-m", "preview"]);
+  };
+  store.saveProject({ ...project(repo), devCommand: `node "${stub}"` });
+  store.insertConversation({ id, projectId: "p1", status: "待确认" });
+  store.patchConversation(id, {
+    changeCard: {
+      goal: "把首页标题改一下",
+      pages: "首页",
+      acceptance: ["打开首页能看到新标题"],
+      outOfScope: [],
+      summary: "只改首页标题",
+      frozen: true,
+    },
+  });
+  try {
+    await runImplement(store, live, agent, dataDir, id);
+    const conversation = store.conversation(id);
+    assert.equal(conversation?.status, "待验收");
+    assert.equal(conversation?.previewStatus, "ready");
+    assert.match(conversation?.previewUrl ?? "", /^http:\/\/127\.0\.0\.1:\d+\/$/);
+    assert.ok(store.messages(id).some((item) => item.body.startsWith("预览地址：")));
+    passPreview(store, live, id);
+    assert.equal(store.conversation(id)?.status, "待合并");
+    assert.ok(store.messages(id).some((item) => item.body === "使用人已通过预览。"));
+  } finally {
+    await stopPreview(id);
+    if (store.conversation(id)?.worktreePath) {
+      await removeWorktree(store, dataDir, id).catch(() => undefined);
     }
     store.close();
     rmSync(root, { recursive: true, force: true });

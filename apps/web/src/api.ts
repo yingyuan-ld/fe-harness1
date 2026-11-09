@@ -81,6 +81,14 @@ export function confirmConversation(id: string): Promise<{ conversation: Convers
   });
 }
 
+/** 使用人看过预览后通过。只有待验收可以点。 */
+export function acceptConversation(id: string): Promise<{ conversation: Conversation }> {
+  return request(`/api/conversations/${encodeURIComponent(id)}/accept`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 /** 取消正在进行的实现或返工。 */
 export function cancelRound(id: string): Promise<{ conversation: Conversation }> {
   return request(`/api/conversations/${encodeURIComponent(id)}/cancel`, {

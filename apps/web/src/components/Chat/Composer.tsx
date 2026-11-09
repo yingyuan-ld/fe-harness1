@@ -1,6 +1,13 @@
 import { observer } from "mobx-react-lite";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { cancelRound, getConversation, sendMessage, type Conversation, type ConversationMessage } from "../../api";
+import {
+  acceptConversation,
+  cancelRound,
+  getConversation,
+  sendMessage,
+  type Conversation,
+  type ConversationMessage,
+} from "../../api";
 import { appStore } from "../../store";
 import { canSend } from "../../thread";
 import { mergeMessages } from "./detail";
@@ -18,9 +25,12 @@ export const Composer = observer(function Composer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [passing, setPassing] = useState(false);
   const { error } = appStore;
   const roundBusy = conversation.busy === true || (conversation.busy == null && !canSend(conversation.status));
-  const locked = roundBusy || sending || cancelling;
+  const locked = roundBusy || sending || cancelling || passing;
+  const reviewing = conversation.status === "待验收";
+  const rework = reviewing || conversation.status === "未通过";
 
   /** 把使用人的话写入当前对话。失败时保留输入，原因显示在输入框上方。 */
   function send() {
@@ -42,6 +52,26 @@ export const Composer = observer(function Composer({
         appStore.setError(err instanceof Error ? err.message : "发送失败");
       })
       .finally(() => setSending(false));
+  }
+
+  /** 看过预览后通过，对话进入待合并。 */
+  function accept() {
+    const id = conversation.id;
+    if (!id || locked || !reviewing) return;
+    setPassing(true);
+    appStore.setError("");
+    acceptConversation(id)
+      .then(() => getConversation(id))
+      .then((latest) => {
+        if (appStore.activeId !== id) return;
+        setConversation(latest.conversation);
+        setMessages(latest.messages);
+        appStore.refreshList();
+      })
+      .catch((err: unknown) => {
+        appStore.setError(err instanceof Error ? err.message : "没能通过");
+      })
+      .finally(() => setPassing(false));
   }
 
   /** 停掉正在进行的实现或返工。停掉之后可以再发。 */
@@ -90,7 +120,9 @@ export const Composer = observer(function Composer({
       <div className="entry">
         <textarea
           value={text}
-          placeholder={roundBusy ? "这一轮还在进行" : "描述要改的页面和期望"}
+          placeholder={
+            roundBusy ? "这一轮还在进行" : rework ? "看过预览后，写下要返工的地方" : "描述要改的页面和期望"
+          }
           disabled={locked}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -98,12 +130,19 @@ export const Composer = observer(function Composer({
           }}
         />
         <div className="actions">
+          {reviewing ? (
+            <button type="button" onClick={accept} disabled={locked}>
+              {passing ? "正在通过…" : "通过"}
+            </button>
+          ) : null}
           <button type="button" onClick={send} disabled={locked || text.trim() === ""}>
-            发送
+            {sending ? "正在发送…" : rework ? "返工" : "发送"}
           </button>
         </div>
       </div>
-      <p className="hint">对话会保存。另一个打开的页面也会看到新消息。</p>
+      <p className="hint">
+        {reviewing ? "通过不需要填写。返工要先写清楚要改什么。" : "对话会保存。另一个打开的页面也会看到新消息。"}
+      </p>
     </footer>
   );
 });

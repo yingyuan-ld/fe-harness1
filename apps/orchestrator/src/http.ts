@@ -12,7 +12,8 @@ import {
   readConversation,
   removeConversation,
 } from "./conversations.js";
-import { cancelCoding, runImplement, runRevise } from "./implement.js";
+import { cancelCoding, passPreview, runImplement, runRevise } from "./implement.js";
+import { stopPreview } from "./preview.js";
 import { isFrozenCard } from "./card.js";
 import { RegisterError, registerProject, updateProject } from "./registry.js";
 
@@ -20,13 +21,14 @@ import { RegisterError, registerProject, updateProject } from "./registry.js";
 export function startServer(
   store: Store,
   port: number,
-  options?: { agent?: AgentAdapter; dataDir?: string },
+  options?: { agent?: AgentAdapter; dataDir?: string; previewHost?: string },
 ): Promise<{ server: Server; port: number }> {
   const live = new Live();
   const agent = options?.agent;
   const dataDir = options?.dataDir;
+  const previewHost = options?.previewHost || "127.0.0.1";
   const server = createServer((req, res) => {
-    void handle(req, res, store, live, agent, dataDir).catch((err: unknown) => {
+    void handle(req, res, store, live, agent, dataDir, previewHost).catch((err: unknown) => {
       if (err instanceof RegisterError || err instanceof ConversationError) {
         send(res, err.status, { error: err.message });
         return;
@@ -53,12 +55,13 @@ async function handle(
   live: Live,
   agent: AgentAdapter | undefined,
   dataDir: string | undefined,
+  previewHost: string,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = decodeURIComponent(url.pathname);
   const method = req.method ?? "GET";
 
-  if (await handleConversation(req, res, store, live, agent, dataDir, method, pathname, url)) return;
+  if (await handleConversation(req, res, store, live, agent, dataDir, previewHost, method, pathname, url)) return;
 
   /** GET /api/projects/list：列出已登记的仓库。 */
   if (method === "GET" && pathname === "/api/projects/list") {
@@ -92,6 +95,7 @@ async function handleConversation(
   live: Live,
   agent: AgentAdapter | undefined,
   dataDir: string | undefined,
+  previewHost: string,
   method: string,
   pathname: string,
   url: URL,
@@ -122,13 +126,24 @@ async function handleConversation(
     const frozen = confirmCard(store, live, confirm[1]);
     if (agent && dataDir) {
       try {
-        await runImplement(store, live, agent, dataDir, confirm[1]);
+        await runImplement(store, live, agent, dataDir, confirm[1], previewHost);
       } catch (err) {
         console.error(err);
       }
     }
     const latest = store.conversation(confirm[1]);
     send(res, 200, { conversation: latest ? presentConversation(store, latest) : frozen });
+    return true;
+  }
+
+  /** POST /api/conversations/:id/accept：使用人看过预览后通过，进入待合并。 */
+  const accepted = /^\/api\/conversations\/([^/]+)\/accept$/.exec(pathname);
+  if (accepted && method === "POST") {
+    await readJson(req);
+    passPreview(store, live, accepted[1]);
+    const latest = store.conversation(accepted[1]);
+    if (!latest) throw new ConversationError("对话不存在", 404);
+    send(res, 200, { conversation: presentConversation(store, latest) });
     return true;
   }
 
@@ -154,9 +169,10 @@ async function handleConversation(
       dataDir &&
       current &&
       isFrozenCard(current.changeCard) &&
-      current.implementAgentId
+      current.implementAgentId &&
+      current.status !== "待合并"
     ) {
-      await runRevise(store, live, agent, dataDir, messages[1], message.body);
+      await runRevise(store, live, agent, dataDir, messages[1], message.body, previewHost);
     } else if (message.role === "user" && agent) {
       await runClarify(store, live, agent, messages[1]);
     }
@@ -171,6 +187,7 @@ async function handleConversation(
     return true;
   }
   if (one && method === "DELETE") {
+    await stopPreview(one[1]);
     removeConversation(store, live, one[1]);
     res.writeHead(204);
     res.end();

@@ -1,7 +1,7 @@
 // 每个对话一份 git worktree。
 // 澄清阶段弄脏登记目录时的收回仍由 repo-guard 负责。
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { Store } from "../db/index.js";
@@ -43,6 +43,7 @@ export async function createWorktree(
   const existing = await findWorktree(project.localPath, location);
   if (existing) {
     if (existing.branch !== branch) throw new WorktreeError("这个目录已经是别的分支的工作副本");
+    linkNodeModules(project.localPath, location);
     const savedPath = canonical(location);
     store.patchConversation(conversationId, { worktreePath: savedPath, branch });
     return { worktreePath: savedPath, branch };
@@ -60,6 +61,7 @@ export async function createWorktree(
       : ["worktree", "add", "-b", branch, location, project.startingRef];
   const added = await git(project.localPath, args);
   if (added.code !== 0) throw new WorktreeError(added.stderr || "没能创建工作副本");
+  linkNodeModules(project.localPath, location);
   const savedPath = canonical(location);
   store.patchConversation(conversationId, { worktreePath: savedPath, branch });
   return { worktreePath: savedPath, branch };
@@ -83,6 +85,7 @@ export async function removeWorktree(store: Store, dataDir: string, conversation
   const location = path.resolve(conversation.worktreePath ?? worktreeLocation(dataDir, conversationId));
   if (samePath(location, project.localPath)) throw new WorktreeError("不能删除登记目录");
   if (branch === project.startingRef) throw new WorktreeError("不能删除起始分支");
+  detachNodeModulesLink(location);
 
   const listed = await findWorktree(project.localPath, location);
   if (listed) {
@@ -104,6 +107,45 @@ export async function removeWorktree(store: Store, dataDir: string, conversation
     if (deleted.code !== 0) throw new WorktreeError(deleted.stderr || "没能删除分支");
   }
   store.patchConversation(conversationId, { worktreePath: null, branch: null });
+}
+
+/**
+ * 工作副本根目录没有 node_modules 时，联接到登记仓库的 node_modules。
+ * 本体没有依赖目录，或工作副本里已经有真实目录或链接时，保持原样。
+ */
+function linkNodeModules(repoPath: string, worktreePath: string): void {
+  const source = path.join(repoPath, "node_modules");
+  const linkPath = path.join(worktreePath, "node_modules");
+  let sourceStat;
+  try {
+    sourceStat = lstatSync(source);
+  } catch {
+    return;
+  }
+  if (!sourceStat.isDirectory() && !sourceStat.isSymbolicLink()) return;
+  try {
+    lstatSync(linkPath);
+    return;
+  } catch {
+    // 工作副本里还没有 node_modules。
+  }
+  try {
+    symlinkSync(path.resolve(source), linkPath, process.platform === "win32" ? "junction" : "dir");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "没能映射 node_modules";
+    throw new WorktreeError(`没能映射 node_modules：${message}`);
+  }
+}
+
+/** 删工作副本前先拆掉 node_modules 链接。只拆链接，不碰真实目录，也不跟着链接删本体。 */
+function detachNodeModulesLink(worktreePath: string): void {
+  const linkPath = path.join(worktreePath, "node_modules");
+  try {
+    if (!lstatSync(linkPath).isSymbolicLink()) return;
+  } catch {
+    return;
+  }
+  rmSync(linkPath, { force: true });
 }
 
 /** 取出这条对话和它所属的仓库。对话或仓库不存在时抛错。 */

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -53,6 +53,47 @@ test("创建后出现工作副本和分支，删除后原克隆保持原样", as
     assert.equal(store.conversation(conversationId)?.worktreePath, null);
     assert.equal(store.conversation(conversationId)?.branch, null);
     assert.deepEqual(snapshot(repo), before);
+  } finally {
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("工作副本的 node_modules 映射到登记仓库，删除后本体还在", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "fe-m6-link-"));
+  const repo = path.join(root, "repo");
+  const dataDir = path.join(root, "data");
+  mkdirSync(repo);
+  git(repo, ["init", "-b", "main"]);
+  writeFileSync(path.join(repo, "readme.txt"), "v1\n");
+  git(repo, ["add", "readme.txt"]);
+  git(repo, ["commit", "-m", "init"]);
+  mkdirSync(path.join(repo, "node_modules"));
+  writeFileSync(path.join(repo, "node_modules", "marker.txt"), "shared\n");
+
+  const store = new Store(dataDir);
+  store.saveProject(project(repo));
+  store.insertConversation({ id: conversationId, projectId: "p1" });
+  try {
+    const created = await createWorktree(store, dataDir, conversationId);
+    const linkPath = path.join(created.worktreePath, "node_modules");
+    assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
+    assert.equal(readFileSync(path.join(linkPath, "marker.txt"), "utf8"), "shared\n");
+    writeFileSync(path.join(linkPath, "from-link.txt"), "x\n");
+    assert.equal(readFileSync(path.join(repo, "node_modules", "from-link.txt"), "utf8"), "x\n");
+
+    rmSync(linkPath, { force: true });
+    mkdirSync(linkPath);
+    writeFileSync(path.join(linkPath, "local.txt"), "own\n");
+    await createWorktree(store, dataDir, conversationId);
+    assert.equal(lstatSync(linkPath).isSymbolicLink(), false);
+    assert.equal(readFileSync(path.join(linkPath, "local.txt"), "utf8"), "own\n");
+    assert.equal(existsSync(path.join(repo, "node_modules", "marker.txt")), true);
+
+    await removeWorktree(store, dataDir, conversationId);
+    assert.equal(existsSync(created.worktreePath), false);
+    assert.equal(readFileSync(path.join(repo, "node_modules", "marker.txt"), "utf8"), "shared\n");
+    assert.equal(readFileSync(path.join(repo, "node_modules", "from-link.txt"), "utf8"), "x\n");
   } finally {
     store.close();
     rmSync(root, { recursive: true, force: true });
