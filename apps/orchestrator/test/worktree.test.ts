@@ -110,7 +110,6 @@ function project(localPath: string): ProjectRecord {
     startingRef: "main",
     testCommand: "npm test",
     devCommand: "npm run dev",
-    requiredChecks: [],
   };
 }
 

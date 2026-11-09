@@ -71,8 +71,6 @@ export type ProjectRecord = {
   testCommand: string;
   /** 开发命令。 */
   devCommand: string;
-  /** 必须通过的检查名。 */
-  requiredChecks: string[];
 };
 
 /** 一次改动对话。 */

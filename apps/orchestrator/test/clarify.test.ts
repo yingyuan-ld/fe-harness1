@@ -239,7 +239,6 @@ async function start(agent: FakeAgent) {
     startingRef: "main",
     testCommand: "npm test",
     devCommand: "npm run dev",
-    requiredChecks: [],
   };
   store.saveProject(project);
   const started = await startServer(store, 0, { agent });

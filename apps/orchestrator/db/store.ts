@@ -65,14 +65,11 @@ export class Store {
     if (!isOneOf(PROVIDERS, project.provider)) {
       throw new Error("代码托管只能是 github、gitlab、azure-devops");
     }
-    if (!Array.isArray(project.requiredChecks) || project.requiredChecks.some((item) => typeof item !== "string")) {
-      throw new Error("必须通过的检查需要是字符串列表");
-    }
     this.db
       .prepare(
         `INSERT INTO projects (
-           id, name, repo_url, local_path, provider, starting_ref, test_command, dev_command, required_checks
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           id, name, repo_url, local_path, provider, starting_ref, test_command, dev_command
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            repo_url = excluded.repo_url,
@@ -80,8 +77,7 @@ export class Store {
            provider = excluded.provider,
            starting_ref = excluded.starting_ref,
            test_command = excluded.test_command,
-           dev_command = excluded.dev_command,
-           required_checks = excluded.required_checks`,
+           dev_command = excluded.dev_command`,
       )
       .run(
         project.id,
@@ -92,7 +88,6 @@ export class Store {
         project.startingRef,
         project.testCommand,
         project.devCommand,
-        JSON.stringify(project.requiredChecks),
       );
   }
 
@@ -100,7 +95,7 @@ export class Store {
   project(id: string): ProjectRecord | undefined {
     const row = this.db
       .prepare(
-        `SELECT id, name, repo_url, local_path, provider, starting_ref, test_command, dev_command, required_checks
+        `SELECT id, name, repo_url, local_path, provider, starting_ref, test_command, dev_command
          FROM projects WHERE id = ?`,
       )
       .get(id) as
@@ -113,7 +108,6 @@ export class Store {
           starting_ref: string;
           test_command: string;
           dev_command: string;
-          required_checks: string;
         }
       | undefined;
     if (!row) return undefined;
@@ -127,7 +121,6 @@ export class Store {
       startingRef: row.starting_ref,
       testCommand: row.test_command,
       devCommand: row.dev_command,
-      requiredChecks: JSON.parse(row.required_checks) as string[],
     };
   }
 

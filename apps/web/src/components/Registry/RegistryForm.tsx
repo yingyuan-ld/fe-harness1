@@ -24,7 +24,6 @@ export function RegistryForm({
   const [testCommand, setTestCommand] = useState(project?.testCommand ?? "npm test");
   const [localPath, setLocalPath] = useState(project?.localPath ?? "");
   const [devCommand, setDevCommand] = useState(project?.devCommand ?? "npm run dev");
-  const [checks, setChecks] = useState(project?.requiredChecks.join("，") ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -40,10 +39,6 @@ export function RegistryForm({
       testCommand,
       localPath,
       devCommand,
-      requiredChecks: checks
-        .split(/[,，\n]/)
-        .map((item) => item.trim())
-        .filter(Boolean),
     };
     try {
       const result = project ? await updateProject(project.id, input) : await addProject(input);
@@ -97,10 +92,6 @@ export function RegistryForm({
         <label>
           开发命令
           <input value={devCommand} onChange={(event) => setDevCommand(event.target.value)} />
-        </label>
-        <label>
-          必须通过的检查，用逗号分开
-          <input value={checks} onChange={(event) => setChecks(event.target.value)} />
         </label>
         {error ? <p className="error">{error}</p> : null}
         <div className="actions">

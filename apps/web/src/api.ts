@@ -9,7 +9,6 @@ export type Project = {
   startingRef: string;
   testCommand: string;
   devCommand: string;
-  requiredChecks: string[];
 };
 
 export type ProjectInput = Omit<Project, "id">;

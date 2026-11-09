@@ -101,7 +101,6 @@ async function start() {
     startingRef: "main",
     testCommand: "npm test",
     devCommand: "npm run dev",
-    requiredChecks: [],
   };
   store.saveProject(project);
   const started = await startServer(store, 0);

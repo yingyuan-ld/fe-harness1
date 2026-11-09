@@ -63,7 +63,6 @@ function parseProject(body: unknown, id: string): ProjectRecord {
     startingRef,
     testCommand,
     devCommand,
-    requiredChecks: readChecks(raw.requiredChecks),
   };
 }
 
@@ -82,21 +81,6 @@ async function assertRepo(localPath: string, startingRef: string): Promise<void>
   }
   const branch = await git(localPath, ["rev-parse", "--verify", "--quiet", `refs/heads/${startingRef}`]);
   if (branch.code !== 0) throw new RegisterError("起始分支在本机目录里不存在", 400);
-}
-
-/** 读取必须通过的检查名。缺省为空列表，字符串按逗号或换行拆开。 */
-function readChecks(value: unknown): string[] {
-  if (value == null) return [];
-  if (typeof value === "string") {
-    return value
-      .split(/[,，\n]/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-    return value.map((item) => item.trim()).filter(Boolean);
-  }
-  throw new RegisterError("必须通过的检查需要是字符串列表", 400);
 }
 
 /** 读取字符串并去掉首尾空白。不是字符串时返回空串。 */

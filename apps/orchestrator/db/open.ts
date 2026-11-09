@@ -18,8 +18,7 @@ export function openDatabase(dataDir: string): DatabaseSync {
       provider TEXT NOT NULL,
       starting_ref TEXT NOT NULL,
       test_command TEXT NOT NULL,
-      dev_command TEXT NOT NULL,
-      required_checks TEXT NOT NULL
+      dev_command TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
