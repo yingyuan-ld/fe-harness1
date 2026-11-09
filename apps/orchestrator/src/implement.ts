@@ -126,7 +126,7 @@ async function runCoding(
       return;
     }
     store.updateRun(runId, { status: "finished" });
-    say(store, live, conversationId, proseBeforeReport(result.text), "assistant");
+    say(store, live, conversationId, result.text.trim() || "这轮已经结束。", "assistant");
     if (round) {
       clearRound(conversationId, round);
       round.finish();
@@ -229,14 +229,6 @@ function settleCancelled(store: Store, live: Live, conversationId: string, runId
   if (store.conversation(conversationId)) store.patchConversation(conversationId, { status: "待确认" });
   say(store, live, conversationId, CANCELLED);
   publish(store, live, conversationId);
-}
-
-/** 取验收报告标记之前的说明。没有标记时用整段正文，空正文用一句结束语。 */
-function proseBeforeReport(text: string): string {
-  const marker = "FE_HARNESS_REPORT";
-  const start = text.indexOf(marker);
-  const prose = (start >= 0 ? text.slice(0, start) : text).trim();
-  return prose || "这轮已经结束。";
 }
 
 /** 把当前对话状态推给已打开这条对话的页面。 */

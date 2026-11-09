@@ -115,13 +115,7 @@ test("有新提交后进入待验收并给出预览地址，通过后进入待�
   writeFileSync(path.join(repo, "readme.txt"), "v1\n");
   git(repo, ["add", "readme.txt"]);
   git(repo, ["commit", "-m", "init"]);
-  writeFileSync(
-    stub,
-    "const host = process.argv[process.argv.indexOf('--host') + 1];\n" +
-      "const port = process.argv[process.argv.indexOf('--port') + 1];\n" +
-      "console.log('http://' + host + ':' + port + '/');\n" +
-      "setInterval(() => {}, 1000);\n",
-  );
+  writeFileSync(stub, "console.log('http://127.0.0.1:9/');\nsetInterval(() => {}, 1000);\n");
 
   const store = new Store(dataDir);
   const live = new Live();
@@ -149,7 +143,7 @@ test("有新提交后进入待验收并给出预览地址，通过后进入待�
     const conversation = store.conversation(id);
     assert.equal(conversation?.status, "待验收");
     assert.equal(conversation?.previewStatus, "ready");
-    assert.match(conversation?.previewUrl ?? "", /^http:\/\/127\.0\.0\.1:\d+\/$/);
+    assert.equal(conversation?.previewUrl, "http://127.0.0.1:9/");
     assert.ok(store.messages(id).some((item) => item.body.startsWith("预览地址：")));
     passPreview(store, live, id);
     assert.equal(store.conversation(id)?.status, "待合并");
