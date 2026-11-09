@@ -67,9 +67,10 @@ async function runCoding(
   let round: ActiveRound | null = null;
   try {
     const place = await createWorktree(store, dataDir, conversationId);
+    const workspace = { cwd: place.worktreePath, testCommand: project.testCommand };
     const session = conversation.implementAgentId
-      ? await agent.resume(conversation.implementAgentId, { cwd: place.worktreePath })
-      : await agent.create({ cwd: place.worktreePath });
+      ? await agent.resume(conversation.implementAgentId, workspace)
+      : await agent.create(workspace);
     const status = phase === "revise" ? "返工中" : "开发中";
     store.patchConversation(conversationId, {
       status,

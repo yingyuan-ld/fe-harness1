@@ -36,10 +36,16 @@ export type AgentSession = {
   dispose(): Promise<void>;
 };
 
+/** 创建或恢复 Agent。工作目录由调用方传入，测试命令用来把进度收成「正在跑测试」。 */
+export type AgentPlace = {
+  cwd: string;
+  testCommand?: string;
+};
+
 /** 创建或恢复 Agent。工作目录由调用方传入。 */
 export type AgentAdapter = {
-  create(input: { cwd: string }): Promise<AgentSession>;
-  resume(agentId: string, input: { cwd: string }): Promise<AgentSession>;
+  create(input: AgentPlace): Promise<AgentSession>;
+  resume(agentId: string, input: AgentPlace): Promise<AgentSession>;
 };
 
 /**
@@ -73,7 +79,7 @@ export class FakeAgent implements AgentAdapter {
   }
 
   /** 新建一个假 Agent，并记下它的工作目录。 */
-  async create(input: { cwd: string }): Promise<AgentSession> {
+  async create(input: AgentPlace): Promise<AgentSession> {
     const agentId = `fake-${++this.seq}`;
     this.createdCwd.push(input.cwd);
     this.cwdOf.set(agentId, input.cwd);
@@ -81,7 +87,7 @@ export class FakeAgent implements AgentAdapter {
   }
 
   /** 按已有 id 恢复。不另编编号，只记下这次恢复和工作目录。 */
-  async resume(agentId: string, input: { cwd: string }): Promise<AgentSession> {
+  async resume(agentId: string, input: AgentPlace): Promise<AgentSession> {
     this.resumed.push(agentId);
     this.cwdOf.set(agentId, input.cwd);
     return this.session(agentId);

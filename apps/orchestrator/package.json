@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "test": "tsx --test test/conversation.test.ts test/card.test.ts test/clarify.test.ts test/worktree.test.ts test/implement.test.ts test/accept.test.ts"
+    "test": "tsx --test test/conversation.test.ts test/card.test.ts test/clarify.test.ts test/worktree.test.ts test/implement.test.ts test/accept.test.ts test/cursor-agent.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.19.0"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.3.1"
   }
 }

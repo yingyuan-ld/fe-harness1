@@ -45,9 +45,10 @@ export async function runClarify(store: Store, live: Live, agent: AgentAdapter, 
   let gotReply = false;
   let runId = "";
   try {
+    const place = { cwd: project.localPath, testCommand: project.testCommand };
     const session = conversation.clarifyAgentId
-      ? await agent.resume(conversation.clarifyAgentId, { cwd: project.localPath })
-      : await agent.create({ cwd: project.localPath });
+      ? await agent.resume(conversation.clarifyAgentId, place)
+      : await agent.create(place);
     store.patchConversation(conversationId, {
       status: "澄清中",
       changeCard: null,
