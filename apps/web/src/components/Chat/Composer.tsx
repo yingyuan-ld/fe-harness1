@@ -30,7 +30,7 @@ export const Composer = observer(function Composer({
   const roundBusy = conversation.busy === true || (conversation.busy == null && !canSend(conversation.status));
   const locked = roundBusy || sending || cancelling || passing;
   const reviewing = conversation.status === "待验收";
-  const rework = reviewing || conversation.status === "未通过";
+  const rework = reviewing || conversation.status === "未通过" || conversation.status === "待合并";
 
   /** 把使用人的话写入当前对话。失败时保留输入，原因显示在输入框上方。 */
   function send() {

@@ -91,7 +91,7 @@ test("假 Agent 收到冻结卡和分支名，取消后可以再操作，返工�
     assert.equal(store.conversation(conversationId)?.status, "未通过");
     const verdict = store.conversation(conversationId)?.report as { unmet?: string[] };
     assert.ok(verdict.unmet?.includes("相对起始分支没有新提交"));
-    assert.throws(() => passPreview(store, live, conversationId), /现在还不能通过/);
+    await assert.rejects(() => passPreview(store, live, conversationId), /现在还不能通过/);
     assert.equal(store.conversation(conversationId)?.implementAgentId, agent.resumed[0]);
   } finally {
     agent.release();
@@ -145,7 +145,7 @@ test("有新提交后进入待验收并给出预览地址，通过后进入待�
     assert.equal(conversation?.previewStatus, "ready");
     assert.equal(conversation?.previewUrl, "http://127.0.0.1:9/");
     assert.ok(store.messages(id).some((item) => item.body.startsWith("预览地址：")));
-    passPreview(store, live, id);
+    await passPreview(store, live, id);
     assert.equal(store.conversation(id)?.status, "待合并");
     assert.ok(store.messages(id).some((item) => item.body === "使用人已通过预览。"));
   } finally {

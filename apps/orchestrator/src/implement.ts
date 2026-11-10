@@ -5,6 +5,12 @@ import { addMessage, ConversationError, type Live, presentConversation } from ".
 import { implementPrompt } from "./implement-prompt.js";
 import { ensurePreview } from "./preview.js";
 import { clearRound, roundOf, setRound, type ActiveRound } from "./rounds.js";
+import {
+  asConversationError,
+  createMergeRequest,
+  updateMergeRequest,
+  type MergeGateway,
+} from "./publish.js";
 import { createWorktree, hasNewCommits, WorktreeError } from "./worktree.js";
 
 const LOOKING = "正在看页面";
@@ -20,8 +26,9 @@ export async function runImplement(
   dataDir: string,
   conversationId: string,
   previewHost = "127.0.0.1",
+  gateway?: MergeGateway,
 ): Promise<void> {
-  await runCoding(store, live, agent, dataDir, conversationId, "implement", "", previewHost);
+  await runCoding(store, live, agent, dataDir, conversationId, "implement", "", previewHost, gateway);
 }
 
 /** 用原来的实现 Agent、工作副本和分支返工。 */
@@ -33,18 +40,49 @@ export async function runRevise(
   conversationId: string,
   note: string,
   previewHost = "127.0.0.1",
+  gateway?: MergeGateway,
 ): Promise<void> {
-  await runCoding(store, live, agent, dataDir, conversationId, "revise", note, previewHost);
+  await runCoding(store, live, agent, dataDir, conversationId, "revise", note, previewHost, gateway);
 }
 
-/** 使用人看过预览后通过。只有待验收可以点，通过后进入待合并。 */
-export function passPreview(store: Store, live: Live, conversationId: string): void {
+/**
+ * 使用人看过预览后通过。只有待验收可以点。
+ * 配置了托管时：还没有合并请求就先推送并创建，成功后进入待合并；已有则直接进入待合并。
+ * 没配置托管时只进入待合并。
+ */
+export async function passPreview(
+  store: Store,
+  live: Live,
+  conversationId: string,
+  gateway?: MergeGateway,
+): Promise<void> {
   if (roundOf(conversationId)) throw new ConversationError("这一轮还在进行", 409);
   const conversation = store.conversation(conversationId);
   if (!conversation) throw new ConversationError("对话不存在", 404);
   if (conversation.status !== "待验收") throw new ConversationError("现在还不能通过", 409);
-  store.patchConversation(conversationId, { status: "待合并" });
+  if (!gateway || conversation.mrUrl) {
+    store.patchConversation(conversationId, { status: "待合并" });
+    say(store, live, conversationId, "使用人已通过预览。");
+    publish(store, live, conversationId);
+    return;
+  }
+  let committed = false;
+  try {
+    committed = await hasNewCommits(store, conversationId);
+  } catch (err) {
+    throw asConversationError(err, "没能比较提交");
+  }
+  if (!committed) throw new ConversationError(NO_COMMIT, 409);
+  let mrUrl = "";
+  try {
+    mrUrl = await createMergeRequest(store, conversationId, gateway);
+  } catch (err) {
+    throw asConversationError(err, "没能创建合并请求");
+  }
+  if (!store.conversation(conversationId)) return;
+  store.patchConversation(conversationId, { status: "待合并", mrUrl });
   say(store, live, conversationId, "使用人已通过预览。");
+  say(store, live, conversationId, `合并请求：${mrUrl}`);
   publish(store, live, conversationId);
 }
 
@@ -68,6 +106,7 @@ async function runCoding(
   phase: "implement" | "revise", // 阶段: 实现或返工
   note = "", // 备注
   previewHost = "127.0.0.1",
+  gateway?: MergeGateway,
 ): Promise<void> {
   if (roundOf(conversationId)) await cancelCoding(store, live, conversationId);
   const conversation = store.conversation(conversationId);
@@ -132,7 +171,7 @@ async function runCoding(
       round.finish();
       round = null;
     }
-    await settleReview(store, live, conversationId, previewHost);
+    await settleReview(store, live, conversationId, previewHost, gateway);
   } catch (err) {
     if (round?.cancelled || err instanceof RunCancelled) {
       if (runId) settleCancelled(store, live, conversationId, runId);
@@ -155,8 +194,14 @@ async function runCoding(
   }
 }
 
-/** 有新提交就进入待验收并启动预览。没有新提交则未通过，不打开预览。 */
-async function settleReview(store: Store, live: Live, conversationId: string, previewHost: string): Promise<void> {
+/** 有新提交就进入待验收并启动预览。没有新提交则未通过，不打开预览。已有合并请求时推送并更新描述。 */
+async function settleReview(
+  store: Store,
+  live: Live,
+  conversationId: string,
+  previewHost: string,
+  gateway?: MergeGateway,
+): Promise<void> {
   let committed = false;
   try {
     committed = await hasNewCommits(store, conversationId);
@@ -171,6 +216,7 @@ async function settleReview(store: Store, live: Live, conversationId: string, pr
     });
     say(store, live, conversationId, NO_COMMIT);
     publish(store, live, conversationId);
+    await refreshMerge(store, live, conversationId, gateway);
     return;
   }
   if (!store.conversation(conversationId)) return;
@@ -198,6 +244,20 @@ async function settleReview(store: Store, live: Live, conversationId: string, pr
     previewPort: preview.port,
   });
   say(store, live, conversationId, preview.url ? `预览地址：${preview.url}` : "预览没有起来。");
+  publish(store, live, conversationId);
+  await refreshMerge(store, live, conversationId, gateway);
+}
+
+/** 返工或实现结束后，若已经有合并请求，只推送并更新描述，不新建。 */
+async function refreshMerge(store: Store, live: Live, conversationId: string, gateway?: MergeGateway): Promise<void> {
+  if (!gateway || !store.conversation(conversationId)?.mrUrl) return;
+  try {
+    await updateMergeRequest(store, conversationId, gateway);
+    say(store, live, conversationId, "已更新合并请求。");
+  } catch (err) {
+    const message = asConversationError(err, "没能更新合并请求").message;
+    say(store, live, conversationId, `没能更新合并请求：${message}`);
+  }
   publish(store, live, conversationId);
 }
 
