@@ -67,6 +67,22 @@ export async function createWorktree(
   return { worktreePath: savedPath, branch };
 }
 
+/** 把工作副本当前提交推到远程的同名分支。不修改本地 git 配置。 */
+export async function pushBranch(cwd: string, branch: string, remote: string): Promise<void> {
+  if (!branch || branch.startsWith("-") || !/^[\w./-]+$/.test(branch)) {
+    throw new WorktreeError("分支名无法推送");
+  }
+  if (!remote || remote.startsWith("-")) throw new WorktreeError("推送地址不合法");
+  const result = await git(cwd, ["push", remote, `HEAD:refs/heads/${branch}`], {
+    ...gitEnv(),
+    GIT_TERMINAL_PROMPT: "0",
+    GCM_INTERACTIVE: "Never",
+  });
+  if (result.code !== 0) {
+    throw new WorktreeError(redactRemote(result.stderr || result.stdout || "没能推送分支", remote));
+  }
+}
+
 /** 工作副本相对起始分支是否已有新提交。 */
 export async function hasNewCommits(store: Store, conversationId: string): Promise<boolean> {
   const { conversation, project } = requirePair(store, conversationId);
@@ -172,13 +188,17 @@ async function findWorktree(repo: string, location: string): Promise<{ branch: s
 }
 
 /** 在指定目录执行一条 git 命令。命令失败时返回退出码和输出；本机没有 git 时抛错。 */
-async function git(cwd: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function git(
+  cwd: string,
+  args: string[],
+  env: NodeJS.ProcessEnv = gitEnv(),
+): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
     const { stdout, stderr } = await execGit("git", args, {
       cwd,
       windowsHide: true,
       encoding: "utf8",
-      env: gitEnv(),
+      env,
     });
     return { code: 0, stdout: String(stdout).trim(), stderr: String(stderr).trim() };
   } catch (err) {
@@ -187,6 +207,18 @@ async function git(cwd: string, args: string[]): Promise<{ code: number; stdout:
     const code = typeof error.code === "number" ? error.code : 1;
     return { code, stdout: String(error.stdout ?? "").trim(), stderr: String(error.stderr ?? "").trim() };
   }
+}
+
+/** 输出里如果带上了远程地址中的令牌，换成占位符。 */
+function redactRemote(text: string, remote: string): string {
+  let secret = "";
+  try {
+    secret = new URL(remote).password;
+  } catch {
+    secret = "";
+  }
+  if (!secret) return text || "没能推送分支";
+  return text.split(secret).join("***").split(encodeURIComponent(secret)).join("***") || "没能推送分支";
 }
 
 /** 需要作者时用本地占位，不改 git 配置。 */

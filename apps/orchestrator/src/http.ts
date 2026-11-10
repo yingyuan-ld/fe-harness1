@@ -15,20 +15,22 @@ import {
 import { cancelCoding, passPreview, runImplement, runRevise } from "./implement.js";
 import { stopPreview } from "./preview.js";
 import { isFrozenCard } from "./card.js";
+import type { MergeGateway } from "./publish.js";
 import { RegisterError, registerProject, updateProject } from "./registry.js";
 
 /** 在本机启动登记和对话接口。传入 agent 时，使用人的消息会走澄清。端口为 0 时由系统分配。 */
 export function startServer(
   store: Store,
   port: number,
-  options?: { agent?: AgentAdapter; dataDir?: string; previewHost?: string },
+  options?: { agent?: AgentAdapter; dataDir?: string; previewHost?: string; merge?: MergeGateway },
 ): Promise<{ server: Server; port: number }> {
   const live = new Live();
   const agent = options?.agent;
   const dataDir = options?.dataDir;
   const previewHost = options?.previewHost || "127.0.0.1";
+  const merge = options?.merge;
   const server = createServer((req, res) => {
-    void handle(req, res, store, live, agent, dataDir, previewHost).catch((err: unknown) => {
+    void handle(req, res, store, live, agent, dataDir, previewHost, merge).catch((err: unknown) => {
       if (err instanceof RegisterError || err instanceof ConversationError) {
         send(res, err.status, { error: err.message });
         return;
@@ -56,12 +58,13 @@ async function handle(
   agent: AgentAdapter | undefined,
   dataDir: string | undefined,
   previewHost: string,
+  merge: MergeGateway | undefined,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = decodeURIComponent(url.pathname);
   const method = req.method ?? "GET";
 
-  if (await handleConversation(req, res, store, live, agent, dataDir, previewHost, method, pathname, url)) return;
+  if (await handleConversation(req, res, store, live, agent, dataDir, previewHost, merge, method, pathname, url)) return;
 
   /** GET /api/projects/list：列出已登记的仓库。 */
   if (method === "GET" && pathname === "/api/projects/list") {
@@ -96,6 +99,7 @@ async function handleConversation(
   agent: AgentAdapter | undefined,
   dataDir: string | undefined,
   previewHost: string,
+  merge: MergeGateway | undefined,
   method: string,
   pathname: string,
   url: URL,
@@ -126,7 +130,7 @@ async function handleConversation(
     const frozen = confirmCard(store, live, confirm[1]);
     if (agent && dataDir) {
       try {
-        await runImplement(store, live, agent, dataDir, confirm[1], previewHost);
+        await runImplement(store, live, agent, dataDir, confirm[1], previewHost, merge);
       } catch (err) {
         console.error(err);
       }
@@ -136,11 +140,11 @@ async function handleConversation(
     return true;
   }
 
-  /** POST /api/conversations/:id/accept：使用人看过预览后通过，进入待合并。 */
+  /** POST /api/conversations/:id/accept：使用人看过预览后通过。还没有合并请求时先推送并创建，成功后进入待合并。 */
   const accepted = /^\/api\/conversations\/([^/]+)\/accept$/.exec(pathname);
   if (accepted && method === "POST") {
     await readJson(req);
-    passPreview(store, live, accepted[1]);
+    await passPreview(store, live, accepted[1], merge);
     const latest = store.conversation(accepted[1]);
     if (!latest) throw new ConversationError("对话不存在", 404);
     send(res, 200, { conversation: presentConversation(store, latest) });
@@ -169,10 +173,9 @@ async function handleConversation(
       dataDir &&
       current &&
       isFrozenCard(current.changeCard) &&
-      current.implementAgentId &&
-      current.status !== "待合并"
+      current.implementAgentId
     ) {
-      await runRevise(store, live, agent, dataDir, messages[1], message.body, previewHost);
+      await runRevise(store, live, agent, dataDir, messages[1], message.body, previewHost, merge);
     } else if (message.role === "user" && agent) {
       await runClarify(store, live, agent, messages[1]);
     }
